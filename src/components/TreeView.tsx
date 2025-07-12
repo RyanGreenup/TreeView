@@ -35,19 +35,21 @@ export interface TreeItemProps {
   loadChildren?: (nodeId: string) => Promise<TreeNode[]>;
   isSelected?: boolean;
   isFocused?: boolean;
+  expandedNodes?: Set<string>;
 }
 
 const TreeItem = (props: TreeItemProps) => {
-  const [expanded, setExpanded] = createSignal(props.node.isExpanded || false);
+  // Use the expanded state from parent instead of local state
+  const expanded = () => props.expandedNodes?.has(props.node.id) || false;
+  
+  // Only load children if we don't have static children
   const [childrenResource] = createResource(
-    () => expanded() && props.node.hasChildren ? props.node.id : null,
+    () => expanded() && props.node.hasChildren && !props.node.children ? props.node.id : null,
     (nodeId) => props.loadChildren?.(nodeId) || Promise.resolve([])
   );
 
   const handleToggle = () => {
-    const newExpanded = !expanded();
-    setExpanded(newExpanded);
-    if (newExpanded && props.onExpand) {
+    if (props.onExpand) {
       props.onExpand(props.node.id);
     }
   };
@@ -60,23 +62,26 @@ const TreeItem = (props: TreeItemProps) => {
   const level = props.node.level || 0;
 
   return (
-    <li class="tree-item" role="treeitem" aria-expanded={expanded()}>
+    <>
       <div
         class={`
-          menu-item flex items-center gap-2 p-2 cursor-pointer
-          ${props.isSelected ? 'active' : ''}
-          ${props.isFocused ? 'focus' : ''}
+          flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-base-300
+          ${props.isSelected ? 'bg-primary text-primary-content' : ''}
+          ${props.isFocused ? 'ring-2 ring-primary ring-offset-1' : ''}
         `}
-        style={{ "padding-left": `${level * 1.5 + 0.5}rem` }}
+        style={{ "margin-left": `${level * 1.5}rem` }}
         onClick={handleClick}
         data-node-id={props.node.id}
+        role="treeitem"
+        aria-expanded={expanded()}
+        aria-level={level + 1}
       >
         <Show 
           when={props.node.hasChildren}
-          fallback={<div class="w-4"></div>}
+          fallback={<div class="w-4 h-4"></div>}
         >
           <button
-            class="btn btn-ghost btn-xs btn-square"
+            class="btn btn-ghost btn-xs btn-square flex-shrink-0"
             onClick={(e) => {
               e.stopPropagation();
               handleToggle();
@@ -94,20 +99,43 @@ const TreeItem = (props: TreeItemProps) => {
             </svg>
           </button>
         </Show>
-        <span class="flex-1 text-sm">{props.node.label}</span>
+        <span class="flex-1 text-sm truncate">{props.node.label}</span>
       </div>
       
       <Show when={expanded() && props.node.hasChildren}>
-        <ul class="menu-items" role="group">
-          <Suspense
+        <div role="group">
+          <Show
+            when={props.node.children && props.node.children.length > 0}
             fallback={
-              <li class="p-2 flex items-center gap-2 text-sm opacity-60" style={{ "padding-left": `${(level + 1) * 1.5 + 0.5}rem` }}>
-                <span class="loading loading-spinner loading-xs"></span>
-                <span>Loading...</span>
-              </li>
+              <Suspense
+                fallback={
+                  <div 
+                    class="flex items-center gap-2 p-2 text-sm opacity-60" 
+                    style={{ "margin-left": `${(level + 1) * 1.5}rem` }}
+                  >
+                    <span class="loading loading-spinner loading-xs"></span>
+                    <span>Loading...</span>
+                  </div>
+                }
+              >
+                <For each={childrenResource()}>
+                  {(child) => (
+                    <TreeItem
+                      node={{ ...child, level: level + 1 }}
+                      onSelect={props.onSelect}
+                      onFocus={props.onFocus}
+                      onExpand={props.onExpand}
+                      loadChildren={props.loadChildren}
+                      isSelected={props.isSelected}
+                      isFocused={props.isFocused}
+                      expandedNodes={props.expandedNodes}
+                    />
+                  )}
+                </For>
+              </Suspense>
             }
           >
-            <For each={childrenResource()}>
+            <For each={props.node.children}>
               {(child) => (
                 <TreeItem
                   node={{ ...child, level: level + 1 }}
@@ -117,13 +145,14 @@ const TreeItem = (props: TreeItemProps) => {
                   loadChildren={props.loadChildren}
                   isSelected={props.isSelected}
                   isFocused={props.isFocused}
+                  expandedNodes={props.expandedNodes}
                 />
               )}
             </For>
-          </Suspense>
-        </ul>
+          </Show>
+        </div>
       </Show>
-    </li>
+    </>
   );
 };
 
@@ -133,7 +162,7 @@ export const TreeView = (props: TreeViewProps) => {
   const [expandedNodes, setExpandedNodes] = createSignal<Set<string>>(new Set());
   const [flattenedNodes, setFlattenedNodes] = createSignal<TreeNode[]>([]);
 
-  let treeRef: HTMLUListElement | undefined;
+  let treeRef: HTMLDivElement | undefined;
 
   // Flatten the tree structure for keyboard navigation
   const flattenTree = (nodes: TreeNode[], level = 0): TreeNode[] => {
@@ -144,8 +173,13 @@ export const TreeView = (props: TreeViewProps) => {
       const nodeWithLevel = { ...node, level };
       flattened.push(nodeWithLevel);
       
-      if (expanded.has(node.id) && node.children) {
-        flattened.push(...flattenTree(node.children, level + 1));
+      if (expanded.has(node.id)) {
+        // Handle both static children and lazy-loaded children
+        if (node.children && node.children.length > 0) {
+          flattened.push(...flattenTree(node.children, level + 1));
+        }
+        // Note: For lazy-loaded children, we can't flatten them until they're loaded
+        // This is handled by the keyboard navigation logic
       }
     }
     return flattened;
@@ -256,9 +290,9 @@ export const TreeView = (props: TreeViewProps) => {
   });
 
   return (
-    <ul
+    <div
       ref={treeRef}
-      class={`menu bg-base-200 rounded-box w-full ${props.class || ''}`}
+      class={`bg-base-100 border border-base-300 rounded-box p-4 w-full ${props.class || ''}`}
       role="tree"
       aria-label="Tree View"
       tabIndex={0}
@@ -267,16 +301,17 @@ export const TreeView = (props: TreeViewProps) => {
       <For each={props.nodes}>
         {(node) => (
           <TreeItem
-            node={{ ...node, level: 0, isExpanded: expandedNodes().has(node.id) }}
+            node={{ ...node, level: 0 }}
             onSelect={handleSelect}
             onFocus={handleFocus}
             onExpand={handleExpand}
             loadChildren={props.loadChildren}
             isSelected={selectedNode()?.id === node.id}
             isFocused={focusedNode()?.id === node.id}
+            expandedNodes={expandedNodes()}
           />
         )}
       </For>
-    </ul>
+    </div>
   );
 };

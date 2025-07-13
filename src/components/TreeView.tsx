@@ -80,7 +80,10 @@ const TreeItem = (props: TreeItemProps) => {
         classList={{
           "items-center gap-2 flex": true,
           active: isSelected(),
-          "ring-2 ring-primary ring-offset-2 ring-offset-base-200": isFocused(),
+          "bg-primary/50 ": isFocused(),
+          // Not sure if I want an outline ring
+          "ring-2 ring-primary ring-offset-2 ring-offset-base-200":
+            isFocused() && false,
         }}
         onClick={handleClick}
         data-node-id={props.node.id}
@@ -102,22 +105,7 @@ const TreeItem = (props: TreeItemProps) => {
             tabIndex={-1}
             aria-label={expanded() ? "Collapse" : "Expand"}
           >
-            <svg
-              classList={{
-                "w-3 h-3 transition-transform duration-200": true,
-                "rotate-90": expanded(),
-              }}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
+            <ExpandCollapseIcon expanded={expanded()} />
           </button>
         </Show>
         <span class="flex-1">{props.node.label}</span>
@@ -453,3 +441,28 @@ export const TreeView = (props: TreeViewProps) => {
     </div>
   );
 };
+
+interface ExpandCollapseIconProps {
+  expanded: boolean;
+  class?: string;
+}
+
+const ExpandCollapseIcon = (props: ExpandCollapseIconProps) => (
+  <svg
+    classList={{
+      "w-3 h-3 transition-transform duration-200": true,
+      "rotate-90": props.expanded,
+      [props.class || ""]: !!props.class,
+    }}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M9 5l7 7-7 7"
+    />
+  </svg>
+);

@@ -174,6 +174,43 @@ const TreeItem = (props: TreeItemProps) => {
   );
 };
 
+// Helper function to scroll an element into view if it's not fully visible
+const scrollIntoViewIfNeeded = (element: HTMLElement, container: HTMLElement) => {
+  const elementRect = element.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  
+  const isAbove = elementRect.top < containerRect.top;
+  const isBelow = elementRect.bottom > containerRect.bottom;
+  
+  if (isAbove || isBelow) {
+    // Try modern scrollIntoView first
+    if ('scrollIntoView' in element && typeof element.scrollIntoView === 'function') {
+      try {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: isAbove ? 'start' : 'end',
+          inline: 'nearest'
+        });
+      } catch {
+        // Fallback for older browsers
+        element.scrollIntoView(isAbove);
+      }
+    } else {
+      // Manual scroll fallback
+      const elementTop = element.offsetTop;
+      const elementHeight = element.offsetHeight;
+      const containerScrollTop = container.scrollTop;
+      const containerHeight = container.clientHeight;
+      
+      if (isAbove) {
+        container.scrollTop = elementTop - 10; // 10px padding
+      } else if (isBelow) {
+        container.scrollTop = elementTop - containerHeight + elementHeight + 10;
+      }
+    }
+  }
+};
+
 export const TreeView = (props: TreeViewProps) => {
   const [selectedNode, setSelectedNode] = createSignal<TreeNode | null>(null);
   const [focusedNode, setFocusedNode] = createSignal<TreeNode | null>(null);
@@ -228,6 +265,14 @@ export const TreeView = (props: TreeViewProps) => {
   const handleFocus = (node: TreeNode) => {
     setFocusedNode(node);
     props.onFocus?.(node);
+    
+    // Scroll the focused item into view
+    setTimeout(() => {
+      const focusedElement = treeRef?.querySelector(`[data-node-id="${node.id}"]`) as HTMLElement;
+      if (focusedElement && treeRef) {
+        scrollIntoViewIfNeeded(focusedElement, treeRef);
+      }
+    }, 0);
   };
 
   const handleExpand = (nodeId: string) => {
@@ -325,6 +370,13 @@ export const TreeView = (props: TreeViewProps) => {
   onMount(() => {
     if (props.nodes.length > 0) {
       setFocusedNode(props.nodes[0]);
+      // Ensure the first item is visible
+      setTimeout(() => {
+        const firstElement = treeRef?.querySelector('[data-node-id]') as HTMLElement;
+        if (firstElement && treeRef) {
+          scrollIntoViewIfNeeded(firstElement, treeRef);
+        }
+      }, 100);
     }
   });
 

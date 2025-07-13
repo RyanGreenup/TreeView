@@ -395,7 +395,7 @@ export const TreeView = (props: TreeViewProps) => {
   });
 
   // Memoize context value to prevent unnecessary re-renders
-  const contextValue = createMemo((): TreeContextValue => ({
+  const contextValue: TreeContextValue = {
     expandedNodes,
     focusedNodeId,
     selectedNodeId,
@@ -405,10 +405,10 @@ export const TreeView = (props: TreeViewProps) => {
     onExpand: handleExpand,
     onChildrenLoaded: handleChildrenLoaded,
     loadChildren: props.loadChildren,
-  }));
+  };
 
   return (
-    <TreeContext.Provider value={contextValue()}>
+    <TreeContext.Provider value={contextValue}>
       <div
         ref={containerRef}
         class={`max-h-96 overflow-y-auto ${props.class || ""}`}

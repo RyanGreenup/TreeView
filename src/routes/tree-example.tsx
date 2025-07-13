@@ -122,6 +122,38 @@ const handleRename = (node_id: string, new_label: string): boolean => {
   return false;
 };
 
+/**
+ * Handles creating a new item in the tree by adding it to the flat data structure.
+ * 
+ * @param parent_id - The ID of the parent node where the new item will be created
+ * @returns boolean - Returns true if the operation was successful, false otherwise
+ * 
+ * @example
+ * // Create a new item under "Personal"
+ * handleCreateNew("1-2");
+ * 
+ * // Create a new item at root level
+ * handleCreateNew("__virtual_root__");
+ */
+const handleCreateNew = (parent_id: string): boolean => {
+  // Generate a unique ID for the new item
+  const timestamp = Date.now();
+  const newId = `new-${timestamp}`;
+  
+  // Create the new item
+  const newItem = {
+    id: newId,
+    label: "New Item",
+    parent_id: parent_id === "__virtual_root__" ? null : parent_id
+  };
+
+  // Add to the flat data structure
+  flatTreeData.push(newItem);
+  console.log(`Created new item "${newItem.label}" with ID ${newId} under parent ${parent_id}`);
+  
+  return true;
+};
+
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
   // Simulate network delay
@@ -170,6 +202,7 @@ export default function TreeExample() {
         clearCut: () => void;
         refreshTree: () => void;
         rename: (nodeId?: string) => void;
+        createNew: (parentId?: string) => void;
       }
     | undefined;
 
@@ -197,8 +230,8 @@ export default function TreeExample() {
     
     // Simple context menu - you could enhance this with a proper dropdown
     const action = prompt(
-      `Choose action for "${node.label}":\n1. Cut\n2. Paste\n3. Move to Root\n4. Rename\n5. Cancel`,
-      "5",
+      `Choose action for "${node.label}":\n1. Cut\n2. Paste\n3. Move to Root\n4. Rename\n5. Create New Child\n6. Cancel`,
+      "6",
     );
     
     switch (action) {
@@ -218,6 +251,10 @@ export default function TreeExample() {
       case "4":
         treeViewRef?.rename(node.id);
         console.log("Rename node:", node.id);
+        break;
+      case "5":
+        treeViewRef?.createNew(node.id);
+        console.log("Create new child under:", node.id);
         break;
       default:
         console.log("Context menu cancelled");
@@ -323,6 +360,12 @@ export default function TreeExample() {
                     Rename Focused
                   </button>
                   <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.createNew()}
+                  >
+                    Create New Item
+                  </button>
+                  <button
                     class="btn btn-outline btn-sm btn-accent"
                     onClick={() => treeViewRef?.refreshTree()}
                   >
@@ -336,6 +379,7 @@ export default function TreeExample() {
                 onExpand={handleExpand}
                 onCutPaste={handleCutPaste}
                 onRename={handleRename}
+                onCreate={handleCreateNew}
                 onContextMenu={handleContextMenu}
                 loadChildren={loadChildren}
                 ref={(ref) => (treeViewRef = ref)}
@@ -445,6 +489,10 @@ export default function TreeExample() {
                 <div class="flex items-center justify-between">
                   <span class="text-sm">Rename</span>
                   <kbd class="kbd kbd-xs">F2</kbd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm">Create New</span>
+                  <kbd class="kbd kbd-xs">Insert</kbd>
                 </div>
               </div>
             </div>

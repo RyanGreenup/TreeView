@@ -140,7 +140,7 @@ export const TreeView = (props: TreeViewProps) => {
     if (cutId && others.onCutPaste) {
       const operationSucceeded = others.onCutPaste(cutId, targetId);
       if (operationSucceeded) {
-        refreshAfterMove(cutId, targetId);
+        refreshParentChildren(cutId, targetId);
         setCutNodeId(undefined);
       }
     }
@@ -151,12 +151,47 @@ export const TreeView = (props: TreeViewProps) => {
     
     if (targetNodeId && others.onCutPaste) {
       others.onCutPaste(targetNodeId, VIRTUAL_ROOT_ID);
-      refreshAfterMove(targetNodeId, VIRTUAL_ROOT_ID);
+      refreshParentChildren(targetNodeId, VIRTUAL_ROOT_ID);
     }
   };
 
   const clearCut = () => {
     setCutNodeId(undefined);
+  };
+
+  const refreshSingleParent = (parentId: string) => {
+    const wasExpanded = expandedNodes().has(parentId);
+    
+    // Clear the loaded children for this parent
+    setLoadedChildren((prev) => {
+      const newMap = new Map(prev);
+      newMap.delete(parentId);
+      return newMap;
+    });
+
+    // If it was expanded, force a collapse then re-expansion to trigger data loading
+    if (wasExpanded) {
+      // First collapse the node
+      setExpandedNodes((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(parentId);
+        return newSet;
+      });
+      
+      // Then queue it for re-expansion
+      setPendingExpansions(new Map([[parentId, true]]));
+    }
+  };
+
+  const handleCreateNew = (parentId?: string) => {
+    const targetParentId = parentId || focusedNode()?.id || VIRTUAL_ROOT_ID;
+    
+    if (others.onCreate) {
+      const success = others.onCreate(targetParentId);
+      if (success) {
+        refreshSingleParent(targetParentId);
+      }
+    }
   };
 
   const handleRename = (nodeId?: string) => {
@@ -226,7 +261,7 @@ export const TreeView = (props: TreeViewProps) => {
       getParentId(nodeId, loaded);
   });
 
-  const refreshAfterMove = (sourceId: string, targetId: string) => {
+  const refreshParentChildren = (sourceId: string, targetId: string) => {
     const getParentIdFn = getParentIdMemo();
     const sourceParentId = getParentIdFn(sourceId);
     const targetParentId = targetId;
@@ -516,6 +551,7 @@ export const TreeView = (props: TreeViewProps) => {
     handleMoveToRoot,
     clearCut,
     handleRename,
+    handleCreateNew,
   };
 
   const handleKeyDown = createKeyboardHandler(
@@ -539,6 +575,7 @@ export const TreeView = (props: TreeViewProps) => {
     clearCut,
     refreshTree,
     rename: handleRename,
+    createNew: handleCreateNew,
   };
 
   onMount(() => {

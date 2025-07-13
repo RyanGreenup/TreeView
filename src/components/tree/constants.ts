@@ -15,7 +15,8 @@ export const TREE_KEYBOARD_SHORTCUTS = {
   PASTE: "v",
   ESCAPE: "Escape",
   MOVE_TO_ROOT: "r",
-  RENAME: "F2"
+  RENAME: "F2",
+  CREATE_NEW: "Insert"
 } as const;
 
 export const ANIMATION_CLASSES = {

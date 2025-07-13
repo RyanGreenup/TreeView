@@ -11,6 +11,7 @@ export interface KeyboardHandlers {
   handleMoveToRoot: () => void;
   clearCut: () => void;
   handleRename: (nodeId: string) => void;
+  handleCreateNew: (parentId?: string) => void;
 }
 
 export const createKeyboardHandler = (
@@ -122,6 +123,11 @@ export const createKeyboardHandler = (
         e.preventDefault();
         handlers.handleRename(currentNode.id);
       },
+
+      handleCreateNew: () => {
+        e.preventDefault();
+        handlers.handleCreateNew(currentNode.id);
+      },
     };
 
     switch (e.key) {
@@ -162,6 +168,9 @@ export const createKeyboardHandler = (
         break;
       case TREE_KEYBOARD_SHORTCUTS.RENAME:
         actions.handleRename();
+        break;
+      case TREE_KEYBOARD_SHORTCUTS.CREATE_NEW:
+        actions.handleCreateNew();
         break;
     }
   };

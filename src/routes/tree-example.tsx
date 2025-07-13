@@ -144,14 +144,14 @@ export default function TreeExample() {
         <div class="xl:col-span-2">
           <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
-              <div class="flex justify-between items-center mb-4">
+              <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-4 gap-4">
                 <div>
                   <h2 class="card-title">File Explorer</h2>
                   <p class="text-sm opacity-70">
                     Click to select, use keyboard arrows to navigate
                   </p>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2">
                   <button
                     class="btn btn-outline btn-sm"
                     onClick={() => treeViewRef?.expandAll()}
@@ -165,13 +165,13 @@ export default function TreeExample() {
                     Collapse All
                   </button>
                   <button
-                    class="btn btn-outline btn-sm"
+                    class="btn btn-outline btn-sm whitespace-nowrap"
                     onClick={() => treeViewRef?.collapseAllExceptFocused()}
                   >
                     Collapse All Except Focused
                   </button>
                   <button
-                    class="btn btn-outline btn-sm"
+                    class="btn btn-outline btn-sm whitespace-nowrap"
                     onClick={() => treeViewRef?.collapseAllExceptSelected()}
                   >
                     Collapse All Except Selected

@@ -65,6 +65,7 @@ export interface TreeViewProps {
     collapseAllExceptFocused: () => void;
     collapseAllExceptSelected: () => void;
     collapseSome: () => void;
+    foldCycle: () => void;
   }) => void;
 }
 
@@ -234,6 +235,7 @@ export const TreeView = (props: TreeViewProps) => {
   const [loadedChildren, setLoadedChildren] = createSignal<
     Map<string, TreeNode[]>
   >(new Map());
+  const [foldCycleState, setFoldCycleState] = createSignal<0 | 1 | 2>(0);
   let treeRef: HTMLUListElement | undefined;
   let containerRef: HTMLDivElement | undefined;
 
@@ -408,6 +410,46 @@ export const TreeView = (props: TreeViewProps) => {
     setExpandedNodes(pathsToKeep);
   };
 
+  const foldCycle = () => {
+    const currentState = foldCycleState();
+    
+    switch (currentState) {
+      case 0: // Currently collapsed, go to "unfold to items with children only"
+        const getTopLevelParentIds = (nodes: TreeNode[]): string[] => {
+          const ids: string[] = [];
+          
+          const traverse = (nodeList: TreeNode[], level: number = 0) => {
+            for (const node of nodeList) {
+              if (node.hasChildren && level === 0) {
+                ids.push(node.id);
+              }
+              if (node.children) {
+                traverse(node.children, level + 1);
+              }
+            }
+          };
+          
+          traverse(nodes);
+          return ids;
+        };
+        
+        const topLevelParentIds = getTopLevelParentIds(props.nodes);
+        setExpandedNodes(new Set(topLevelParentIds));
+        setFoldCycleState(1);
+        break;
+        
+      case 1: // Currently showing top-level parents, go to "unfold all"
+        expandAll();
+        setFoldCycleState(2);
+        break;
+        
+      case 2: // Currently expanded all, go back to collapsed
+        collapseAll();
+        setFoldCycleState(0);
+        break;
+    }
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     const flattened = flattenedNodes();
     const currentNode = focusedNode();
@@ -512,6 +554,7 @@ export const TreeView = (props: TreeViewProps) => {
       collapseAllExceptFocused,
       collapseAllExceptSelected,
       collapseSome,
+      foldCycle,
     });
   });
 

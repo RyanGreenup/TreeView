@@ -105,7 +105,7 @@ export default function TreeExample() {
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
   const [expandedItems, setExpandedItems] = createSignal<string[]>([]);
   
-  let treeViewRef: { expandAll: () => void; collapseAll: () => void; collapseAllExceptFocused: () => void; collapseAllExceptSelected: () => void; collapseSome: () => void } | undefined;
+  let treeViewRef: { expandAll: () => void; collapseAll: () => void; collapseAllExceptFocused: () => void; collapseAllExceptSelected: () => void; collapseSome: () => void; foldCycle: () => void } | undefined;
 
   const handleSelect = (node: TreeNode) => {
     setSelectedItem(node);
@@ -181,6 +181,12 @@ export default function TreeExample() {
                     onClick={() => treeViewRef?.collapseSome()}
                   >
                     Collapse Some
+                  </button>
+                  <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.foldCycle()}
+                  >
+                    Fold-Cycle
                   </button>
                 </div>
               </div>

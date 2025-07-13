@@ -59,7 +59,12 @@ export interface TreeViewProps {
   onExpand?: TreeExpandHandler;
   loadChildren?: TreeChildrenLoader;
   class?: string;
-  ref?: (ref: { expandAll: () => void }) => void;
+  ref?: (ref: {
+    expandAll: () => void;
+    collapseAll: () => void;
+    collapseAllExceptFocused: () => void;
+    collapseAllExceptSelected: () => void;
+  }) => void;
 }
 
 export interface TreeItemProps {
@@ -298,7 +303,7 @@ export const TreeView = (props: TreeViewProps) => {
   const expandAll = () => {
     const getAllNodeIds = (nodes: TreeNode[]): string[] => {
       const ids: string[] = [];
-      
+
       const traverse = (nodeList: TreeNode[]) => {
         for (const node of nodeList) {
           if (node.hasChildren) {
@@ -309,13 +314,69 @@ export const TreeView = (props: TreeViewProps) => {
           }
         }
       };
-      
+
       traverse(nodes);
       return ids;
     };
 
     const allNodeIds = getAllNodeIds(props.nodes);
     setExpandedNodes(new Set(allNodeIds));
+  };
+
+  const collapseAll = () => {
+    setExpandedNodes(new Set<string>());
+  };
+
+  const getPathToNode = (
+    nodeId: string,
+    nodes: TreeNode[],
+    path: string[] = [],
+  ): string[] | null => {
+    for (const node of nodes) {
+      const currentPath = [...path, node.id];
+
+      if (node.id === nodeId) {
+        return currentPath;
+      }
+
+      if (node.children) {
+        const foundPath = getPathToNode(nodeId, node.children, currentPath);
+        if (foundPath) return foundPath;
+      }
+
+      const loadedChildrenForNode = loadedChildren().get(node.id);
+      if (loadedChildrenForNode) {
+        const foundPath = getPathToNode(
+          nodeId,
+          loadedChildrenForNode,
+          currentPath,
+        );
+        if (foundPath) return foundPath;
+      }
+    }
+    return null;
+  };
+
+  const collapseAllExceptNode = (node: TreeNode | null) => {
+    if (!node) {
+      collapseAll();
+      return;
+    }
+
+    const pathToNode = getPathToNode(node.id, props.nodes);
+    if (pathToNode) {
+      setExpandedNodes(new Set(pathToNode.slice(0, -1)));
+    } else {
+      collapseAll();
+    }
+  };
+
+  const collapseAllExceptFocused = () => {
+    collapseAllExceptNode(focusedNode());
+  };
+
+  const collapseAllExceptSelected = () => {
+    collapseAllExceptNode(selectedNode());
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -414,9 +475,14 @@ export const TreeView = (props: TreeViewProps) => {
       setFocusedNode(props.nodes[0]);
       // The reactive effect will handle scrolling
     }
-    
+
     // Expose API methods via ref
-    props.ref?.({ expandAll });
+    props.ref?.({
+      expandAll,
+      collapseAll,
+      collapseAllExceptFocused,
+      collapseAllExceptSelected,
+    });
   });
 
   // Memoize context value to prevent unnecessary re-renders

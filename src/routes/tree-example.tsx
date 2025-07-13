@@ -105,7 +105,7 @@ export default function TreeExample() {
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
   const [expandedItems, setExpandedItems] = createSignal<string[]>([]);
   
-  let treeViewRef: { expandAll: () => void } | undefined;
+  let treeViewRef: { expandAll: () => void; collapseAll: () => void; collapseAllExceptFocused: () => void; collapseAllExceptSelected: () => void } | undefined;
 
   const handleSelect = (node: TreeNode) => {
     setSelectedItem(node);
@@ -151,12 +151,32 @@ export default function TreeExample() {
                     Click to select, use keyboard arrows to navigate
                   </p>
                 </div>
-                <button
-                  class="btn btn-outline btn-sm"
-                  onClick={() => treeViewRef?.expandAll()}
-                >
-                  Expand All
-                </button>
+                <div class="flex gap-2">
+                  <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.expandAll()}
+                  >
+                    Expand All
+                  </button>
+                  <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.collapseAll()}
+                  >
+                    Collapse All
+                  </button>
+                  <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.collapseAllExceptFocused()}
+                  >
+                    Collapse All Except Focused
+                  </button>
+                  <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.collapseAllExceptSelected()}
+                  >
+                    Collapse All Except Selected
+                  </button>
+                </div>
               </div>
               <TreeView
                 nodes={mockTreeData}

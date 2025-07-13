@@ -1,4 +1,5 @@
 import {
+  Accessor,
   createEffect,
   createResource,
   createSignal,
@@ -211,6 +212,7 @@ const scrollIntoViewIfNeeded = (
   }
 };
 
+
 export const TreeView = (props: TreeViewProps) => {
   const [selectedNode, setSelectedNode] = createSignal<TreeNode | null>(null);
   const [focusedNode, setFocusedNode] = createSignal<TreeNode | null>(null);
@@ -225,41 +227,13 @@ export const TreeView = (props: TreeViewProps) => {
   let treeRef: HTMLUListElement | undefined;
   let containerRef: HTMLDivElement | undefined;
 
-  // Flatten the tree structure for keyboard navigation
-  const flattenTree = (nodes: TreeNode[], level = 0): TreeNode[] => {
-    const flattened: TreeNode[] = [];
-    const expanded = expandedNodes();
-    const loaded = loadedChildren();
-
-    for (const node of nodes) {
-      const nodeWithLevel = { ...node, level };
-      flattened.push(nodeWithLevel);
-
-      if (expanded.has(node.id)) {
-        let childrenToFlatten: TreeNode[] = [];
-
-        // Prioritize static children if available
-        if (node.children && node.children.length > 0) {
-          childrenToFlatten = node.children;
-        }
-        // Otherwise use dynamically loaded children
-        else if (loaded.has(node.id)) {
-          childrenToFlatten = loaded.get(node.id) || [];
-        }
-
-        if (childrenToFlatten.length > 0) {
-          flattened.push(...flattenTree(childrenToFlatten, level + 1));
-        }
-      }
-    }
-    return flattened;
-  };
-
   createEffect(() => {
     // Re-flatten when expanded nodes or loaded children change
     expandedNodes();
     loadedChildren();
-    setFlattenedNodes(flattenTree(props.nodes));
+    setFlattenedNodes(
+      flattenTree(props.nodes, undefined, expandedNodes, loadedChildren),
+    );
   });
 
   // Reactive effect to scroll focused item into view
@@ -445,6 +419,9 @@ interface ExpandCollapseIconProps {
   class?: string;
 }
 
+
+// Helper Functions / Components
+
 const ExpandCollapseIcon = (props: ExpandCollapseIconProps) => (
   <svg
     classList={{
@@ -464,3 +441,47 @@ const ExpandCollapseIcon = (props: ExpandCollapseIconProps) => (
     />
   </svg>
 );
+
+
+
+// Flatten the tree structure for keyboard navigation
+const flattenTree = (
+  nodes: TreeNode[],
+  level = 0,
+  expandedNodes: Accessor<Set<string>>,
+  loadedChildren: Accessor<Map<string, TreeNode[]>>,
+): TreeNode[] => {
+  const flattened: TreeNode[] = [];
+  const expanded = expandedNodes();
+  const loaded = loadedChildren();
+
+  for (const node of nodes) {
+    const nodeWithLevel = { ...node, level };
+    flattened.push(nodeWithLevel);
+
+    if (expanded.has(node.id)) {
+      let childrenToFlatten: TreeNode[] = [];
+
+      // Prioritize static children if available
+      if (node.children && node.children.length > 0) {
+        childrenToFlatten = node.children;
+      }
+      // Otherwise use dynamically loaded children
+      else if (loaded.has(node.id)) {
+        childrenToFlatten = loaded.get(node.id) || [];
+      }
+
+      if (childrenToFlatten.length > 0) {
+        flattened.push(
+          ...flattenTree(
+            childrenToFlatten,
+            level + 1,
+            expandedNodes,
+            loadedChildren,
+          ),
+        );
+      }
+    }
+  }
+  return flattened;
+};

@@ -1,5 +1,6 @@
 import {
   Accessor,
+  createContext,
   createEffect,
   createResource,
   createSignal,
@@ -7,6 +8,7 @@ import {
   onMount,
   Show,
   Suspense,
+  useContext,
 } from "solid-js";
 
 type TreeSelectHandler = (node: TreeNode) => void;
@@ -14,6 +16,28 @@ type TreeFocusHandler = (node: TreeNode) => void;
 type TreeExpandHandler = (nodeId: string) => void;
 type TreeChildrenLoader = (nodeId: string) => Promise<TreeNode[]>;
 type TreeChildrenLoadedHandler = (nodeId: string, children: TreeNode[]) => void;
+
+interface TreeContextValue {
+  expandedNodes: Accessor<Set<string>>;
+  focusedNodeId: Accessor<string | undefined>;
+  selectedNodeId: Accessor<string | undefined>;
+  loadedChildren: Accessor<Map<string, TreeNode[]>>;
+  onSelect: TreeSelectHandler;
+  onFocus: TreeFocusHandler;
+  onExpand: TreeExpandHandler;
+  onChildrenLoaded: TreeChildrenLoadedHandler;
+  loadChildren?: TreeChildrenLoader;
+}
+
+const TreeContext = createContext<TreeContextValue>();
+
+const useTreeContext = () => {
+  const context = useContext(TreeContext);
+  if (!context) {
+    throw new Error("useTreeContext must be used within a TreeView");
+  }
+  return context;
+};
 
 export interface TreeNode {
   id: string;
@@ -35,19 +59,13 @@ export interface TreeViewProps {
 
 export interface TreeItemProps {
   node: TreeNode;
-  onSelect?: TreeSelectHandler;
-  onFocus?: TreeFocusHandler;
-  onExpand?: TreeExpandHandler;
-  loadChildren?: TreeChildrenLoader;
-  onChildrenLoaded?: TreeChildrenLoadedHandler;
-  expandedNodes?: Set<string>;
-  focusedNodeId?: string;
-  selectedNodeId?: string;
 }
 
 const TreeItem = (props: TreeItemProps) => {
-  // Use the expanded state from parent instead of local state
-  const expanded = () => props.expandedNodes?.has(props.node.id) || false;
+  const ctx = useTreeContext();
+  
+  // Use the expanded state from context
+  const expanded = () => ctx.expandedNodes().has(props.node.id);
 
   // Only load children if we don't have static children
   const [childrenResource] = createResource(
@@ -56,30 +74,28 @@ const TreeItem = (props: TreeItemProps) => {
         ? props.node.id
         : null,
     async (nodeId) => {
-      const children = await (props.loadChildren?.(nodeId) ||
+      const children = await (ctx.loadChildren?.(nodeId) ||
         Promise.resolve([]));
       // Notify parent about loaded children so they can be included in keyboard navigation
       if (children.length > 0) {
-        props.onChildrenLoaded?.(nodeId, children);
+        ctx.onChildrenLoaded(nodeId, children);
       }
       return children;
     },
   );
 
   const handleToggle = () => {
-    if (props.onExpand) {
-      props.onExpand(props.node.id);
-    }
+    ctx.onExpand(props.node.id);
   };
 
   const handleClick = () => {
-    props.onFocus?.(props.node);
-    props.onSelect?.(props.node);
+    ctx.onFocus(props.node);
+    ctx.onSelect(props.node);
   };
 
   const level = props.node.level;
-  const isSelected = () => props.selectedNodeId === props.node.id;
-  const isFocused = () => props.focusedNodeId === props.node.id;
+  const isSelected = () => ctx.selectedNodeId() === props.node.id;
+  const isFocused = () => ctx.focusedNodeId() === props.node.id;
 
   return (
     <li>
@@ -137,14 +153,6 @@ const TreeItem = (props: TreeItemProps) => {
                   {(child) => (
                     <TreeItem
                       node={{ ...child, level: level + 1 }}
-                      onSelect={props.onSelect}
-                      onFocus={props.onFocus}
-                      onExpand={props.onExpand}
-                      loadChildren={props.loadChildren}
-                      onChildrenLoaded={props.onChildrenLoaded}
-                      expandedNodes={props.expandedNodes}
-                      focusedNodeId={props.focusedNodeId}
-                      selectedNodeId={props.selectedNodeId}
                     />
                   )}
                 </For>
@@ -155,14 +163,6 @@ const TreeItem = (props: TreeItemProps) => {
               {(child) => (
                 <TreeItem
                   node={{ ...child, level: level + 1 }}
-                  onSelect={props.onSelect}
-                  onFocus={props.onFocus}
-                  onExpand={props.onExpand}
-                  loadChildren={props.loadChildren}
-                  onChildrenLoaded={props.onChildrenLoaded}
-                  expandedNodes={props.expandedNodes}
-                  focusedNodeId={props.focusedNodeId}
-                  selectedNodeId={props.selectedNodeId}
                 />
               )}
             </For>
@@ -387,36 +387,42 @@ export const TreeView = (props: TreeViewProps) => {
     }
   });
 
+  const contextValue: TreeContextValue = {
+    expandedNodes,
+    focusedNodeId: () => focusedNode()?.id,
+    selectedNodeId: () => selectedNode()?.id,
+    loadedChildren,
+    onSelect: handleSelect,
+    onFocus: handleFocus,
+    onExpand: handleExpand,
+    onChildrenLoaded: handleChildrenLoaded,
+    loadChildren: props.loadChildren,
+  };
+
   return (
-    <div
-      ref={containerRef}
-      class={`max-h-96 overflow-y-auto ${props.class || ""}`}
-    >
-      <ul
-        ref={treeRef}
-        class="menu bg-base-200 rounded-box w-full"
-        role="tree"
-        aria-label="Tree View"
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
+    <TreeContext.Provider value={contextValue}>
+      <div
+        ref={containerRef}
+        class={`max-h-96 overflow-y-auto ${props.class || ""}`}
       >
-        <For each={props.nodes}>
-          {(node) => (
-            <TreeItem
-              node={{ ...node, level: 0 }}
-              onSelect={handleSelect}
-              onFocus={handleFocus}
-              onExpand={handleExpand}
-              loadChildren={props.loadChildren}
-              onChildrenLoaded={handleChildrenLoaded}
-              expandedNodes={expandedNodes()}
-              focusedNodeId={focusedNode()?.id}
-              selectedNodeId={selectedNode()?.id}
-            />
-          )}
-        </For>
-      </ul>
-    </div>
+        <ul
+          ref={treeRef}
+          class="menu bg-base-200 rounded-box w-full"
+          role="tree"
+          aria-label="Tree View"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+        >
+          <For each={props.nodes}>
+            {(node) => (
+              <TreeItem
+                node={{ ...node, level: 0 }}
+              />
+            )}
+          </For>
+        </ul>
+      </div>
+    </TreeContext.Provider>
   );
 };
 

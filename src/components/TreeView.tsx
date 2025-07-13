@@ -79,7 +79,7 @@ const TreeItem = (props: TreeItemProps) => {
     <li>
       <a
         class={`
-          flex items-center gap-2 
+          flex items-center gap-2
           ${isSelected() ? "active" : ""}
           ${isFocused() ? "ring-2 ring-primary ring-offset-2 ring-offset-base-200" : ""}
         `}
@@ -188,7 +188,7 @@ const scrollIntoViewIfNeeded = (
   const isBelow = elementRect.bottom > containerRect.bottom;
 
   if (isAbove || isBelow) {
-    // Try modern scrollIntoView first
+    // Use scrollIntoView with better block positioning for smooth UX
     if (
       "scrollIntoView" in element &&
       typeof element.scrollIntoView === "function"
@@ -196,7 +196,7 @@ const scrollIntoViewIfNeeded = (
       try {
         element.scrollIntoView({
           behavior: "smooth",
-          block: isAbove ? "start" : "end",
+          block: "nearest",
           inline: "nearest",
         });
       } catch {
@@ -204,16 +204,17 @@ const scrollIntoViewIfNeeded = (
         element.scrollIntoView(isAbove);
       }
     } else {
-      // Manual scroll fallback
+      // Manual scroll fallback with better positioning
       const elementTop = element.offsetTop;
       const elementHeight = element.offsetHeight;
       const containerScrollTop = container.scrollTop;
       const containerHeight = container.clientHeight;
+      const padding = 8; // Small padding from container edges
 
       if (isAbove) {
-        container.scrollTop = elementTop - 10; // 10px padding
+        container.scrollTop = Math.max(0, elementTop - padding);
       } else if (isBelow) {
-        container.scrollTop = elementTop - containerHeight + elementHeight + 10;
+        container.scrollTop = elementTop - containerHeight + elementHeight + padding;
       }
     }
   }
@@ -231,6 +232,7 @@ export const TreeView = (props: TreeViewProps) => {
   const [flattenedNodes, setFlattenedNodes] = createSignal<TreeNode[]>([]);
 
   let treeRef: HTMLUListElement | undefined;
+  let containerRef: HTMLDivElement | undefined;
 
   // Flatten the tree structure for keyboard navigation
   const flattenTree = (nodes: TreeNode[], level = 0): TreeNode[] => {
@@ -279,14 +281,14 @@ export const TreeView = (props: TreeViewProps) => {
     props.onFocus?.(node);
 
     // Scroll the focused item into view
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       const focusedElement = treeRef?.querySelector(
         `a[data-node-id="${node.id}"]`,
       ) as HTMLElement;
-      if (focusedElement && treeRef) {
-        scrollIntoViewIfNeeded(focusedElement, treeRef);
+      if (focusedElement && containerRef) {
+        scrollIntoViewIfNeeded(focusedElement, containerRef);
       }
-    }, 0);
+    });
   };
 
   const handleExpand = (nodeId: string) => {
@@ -389,22 +391,25 @@ export const TreeView = (props: TreeViewProps) => {
     if (props.nodes.length > 0) {
       setFocusedNode(props.nodes[0]);
       // Ensure the first item is visible
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         const firstElement = treeRef?.querySelector(
           "a[data-node-id]",
         ) as HTMLElement;
-        if (firstElement && treeRef) {
-          scrollIntoViewIfNeeded(firstElement, treeRef);
+        if (firstElement && containerRef) {
+          scrollIntoViewIfNeeded(firstElement, containerRef);
         }
-      }, 100);
+      });
     }
   });
 
   return (
-    <div class="max-h-96 overflow-y-auto">
+    <div
+      ref={containerRef}
+      class={`max-h-96 overflow-y-auto ${props.class || ''}`}
+    >
       <ul
         ref={treeRef}
-        class={`menu bg-base-200 rounded-box w-full `}
+        class="menu bg-base-200 rounded-box w-full"
         role="tree"
         aria-label="Tree View"
         tabIndex={0}

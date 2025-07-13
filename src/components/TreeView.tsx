@@ -66,6 +66,7 @@ export interface TreeViewProps {
     collapseAllExceptSelected: () => void;
     collapseSome: () => void;
     foldCycle: () => void;
+    focusAndReveal: (nodeId: string) => Promise<void>;
   }) => void;
 }
 
@@ -450,6 +451,103 @@ export const TreeView = (props: TreeViewProps) => {
     }
   };
 
+  const focusAndReveal = async (nodeId: string) => {
+    const findNodeInTree = (targetId: string, nodes: TreeNode[]): TreeNode | null => {
+      for (const node of nodes) {
+        if (node.id === targetId) {
+          return node;
+        }
+        
+        if (node.children) {
+          const found = findNodeInTree(targetId, node.children);
+          if (found) return found;
+        }
+        
+        const loadedChildrenForNode = loadedChildren().get(node.id);
+        if (loadedChildrenForNode) {
+          const found = findNodeInTree(targetId, loadedChildrenForNode);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    // First try to find the node in the current tree
+    let targetNode = findNodeInTree(nodeId, props.nodes);
+    
+    // If not found, we need to progressively expand and load children
+    if (!targetNode) {
+      const expandAndSearch = async (currentNodes: TreeNode[], targetId: string): Promise<TreeNode | null> => {
+        for (const node of currentNodes) {
+          // Check if target could be a descendant by checking if targetId starts with node.id
+          if (targetId.startsWith(node.id + "-") || targetId === node.id) {
+            
+            // If this is the target node
+            if (node.id === targetId) {
+              return node;
+            }
+            
+            // If this node has children (static or dynamic), search them
+            if (node.hasChildren) {
+              // Expand this node first
+              setExpandedNodes(prev => new Set([...prev, node.id]));
+              
+              // Check static children first
+              if (node.children) {
+                const found = await expandAndSearch(node.children, targetId);
+                if (found) return found;
+              }
+              
+              // If no static children but has dynamic children, load them
+              if (!node.children && props.loadChildren) {
+                try {
+                  const dynamicChildren = await props.loadChildren(node.id);
+                  if (dynamicChildren && dynamicChildren.length > 0) {
+                    // Update loaded children
+                    setLoadedChildren(prev => {
+                      const newMap = new Map(prev);
+                      newMap.set(node.id, dynamicChildren);
+                      return newMap;
+                    });
+                    
+                    // Search in the newly loaded children
+                    const found = await expandAndSearch(dynamicChildren, targetId);
+                    if (found) return found;
+                  }
+                } catch (error) {
+                  console.warn(`Failed to load children for node ${node.id}:`, error);
+                }
+              }
+            }
+          }
+        }
+        return null;
+      };
+
+      targetNode = await expandAndSearch(props.nodes, nodeId);
+    }
+
+    if (!targetNode) {
+      console.warn(`Node with id "${nodeId}" not found in tree`);
+      return;
+    }
+
+    // Get path to the target node and ensure all parents are expanded
+    const pathToTarget = getPathToNode(nodeId, props.nodes);
+    if (pathToTarget) {
+      // Expand all parent nodes (exclude the target node itself)
+      const parentsToExpand = pathToTarget.slice(0, -1);
+      setExpandedNodes((prev) => {
+        const newSet = new Set(prev);
+        parentsToExpand.forEach(id => newSet.add(id));
+        return newSet;
+      });
+      
+      // Set focus to the target node
+      handleFocus(targetNode);
+    }
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     const flattened = flattenedNodes();
     const currentNode = focusedNode();
@@ -555,6 +653,7 @@ export const TreeView = (props: TreeViewProps) => {
       collapseAllExceptSelected,
       collapseSome,
       foldCycle,
+      focusAndReveal,
     });
   });
 

@@ -124,6 +124,10 @@ export default function TreeExample() {
         collapseSome: () => void;
         foldCycle: () => void;
         focusAndReveal: (nodeId: string) => Promise<void>;
+        cut: (nodeId: string) => void;
+        paste: (targetId: string) => void;
+        moveToRoot: () => void;
+        clearCut: () => void;
       }
     | undefined;
 
@@ -214,6 +218,30 @@ export default function TreeExample() {
                   >
                     Focus & Reveal (3-2-2)
                   </button>
+                  <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.cut("1-1-1")}
+                  >
+                    Cut Project A
+                  </button>
+                  <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.paste("1-2")}
+                  >
+                    Paste to Personal
+                  </button>
+                  <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.moveToRoot()}
+                  >
+                    Move Cut to Root
+                  </button>
+                  <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.clearCut()}
+                  >
+                    Clear Cut
+                  </button>
                 </div>
               </div>
               <TreeView
@@ -221,6 +249,8 @@ export default function TreeExample() {
                 onSelect={handleSelect}
                 onFocus={handleFocus}
                 onExpand={handleExpand}
+                onCutPaste={handleCutPaste}
+                onMoveToRoot={handleMoveToRoot}
                 loadChildren={loadChildren}
                 ref={(ref) => (treeViewRef = ref)}
               />

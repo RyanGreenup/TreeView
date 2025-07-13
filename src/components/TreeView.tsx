@@ -20,16 +20,22 @@ type TreeFocusHandler = (node: TreeNode) => void;
 type TreeExpandHandler = (nodeId: string) => void;
 type TreeChildrenLoader = (nodeId: string) => Promise<TreeNode[]>;
 type TreeChildrenLoadedHandler = (nodeId: string, children: TreeNode[]) => void;
+type TreeCutPasteHandler = (sourceId: string, targetId: string) => void;
+type TreeMoveToRootHandler = (sourceId: string) => void;
 
 interface TreeContextValue {
   expandedNodes: Accessor<Set<string>>;
   focusedNodeId: Accessor<string | undefined>;
   selectedNodeId: Accessor<string | undefined>;
   loadedChildren: Accessor<Map<string, TreeNode[]>>;
+  cutNodeId: Accessor<string | undefined>;
   onSelect: TreeSelectHandler;
   onFocus: TreeFocusHandler;
   onExpand: TreeExpandHandler;
   onChildrenLoaded: TreeChildrenLoadedHandler;
+  onCut: (nodeId: string) => void;
+  onPaste: (targetId: string) => void;
+  onMoveToRoot: () => void;
   loadChildren?: TreeChildrenLoader;
 }
 
@@ -56,6 +62,8 @@ export interface TreeViewProps {
   onSelect?: TreeSelectHandler;
   onFocus?: TreeFocusHandler;
   onExpand?: TreeExpandHandler;
+  onCutPaste?: TreeCutPasteHandler;
+  onMoveToRoot?: TreeMoveToRootHandler;
   loadChildren?: TreeChildrenLoader;
   class?: string;
   ref?: (ref: {
@@ -66,6 +74,10 @@ export interface TreeViewProps {
     collapseSome: () => void;
     foldCycle: () => void;
     focusAndReveal: (nodeId: string) => Promise<void>;
+    cut: (nodeId: string) => void;
+    paste: (targetId: string) => void;
+    moveToRoot: () => void;
+    clearCut: () => void;
   }) => void;
 }
 
@@ -107,6 +119,7 @@ const TreeItem = (props: TreeItemProps) => {
   const level = props.node.level;
   const isSelected = () => ctx.selectedNodeId() === props.node.id;
   const isFocused = () => ctx.focusedNodeId() === props.node.id;
+  const isCut = () => ctx.cutNodeId() === props.node.id;
 
   return (
     <li>
@@ -115,11 +128,28 @@ const TreeItem = (props: TreeItemProps) => {
           "items-center gap-2 flex": true,
           active: isSelected(),
           "bg-primary/50 ": isFocused(),
+          "opacity-50 bg-warning/20": isCut(),
           // Not sure if I want an outline ring
           "ring-2 ring-primary ring-offset-2 ring-offset-base-200":
             isFocused() && false,
         }}
         onClick={handleClick}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          // Simple context menu - you could enhance this with a proper dropdown
+          const action = prompt("Choose action:\n1. Cut\n2. Paste\n3. Move to Root\n4. Cancel", "4");
+          switch(action) {
+            case "1":
+              ctx.onCut(props.node.id);
+              break;
+            case "2":
+              ctx.onPaste(props.node.id);
+              break;
+            case "3":
+              ctx.onMoveToRoot();
+              break;
+          }
+        }}
         data-node-id={props.node.id}
         role="treeitem"
         aria-expanded={expanded()}
@@ -226,11 +256,16 @@ export const TreeView = (props: TreeViewProps) => {
     Map<string, TreeNode[]>
   >(new Map());
   const [foldCycleState, setFoldCycleState] = createSignal<0 | 1 | 2>(0);
+  const [cutNodeId, setCutNodeId] = createSignal<string | undefined>(undefined);
+  const [refreshTrigger, setRefreshTrigger] = createSignal(0);
   let treeRef: HTMLUListElement | undefined;
   let containerRef: HTMLDivElement | undefined;
 
   // Load root data asynchronously
-  const [rootNodes] = createResource(props.rootData);
+  const [rootNodes, { refetch: refetchRootNodes }] = createResource(
+    () => refreshTrigger(), // Track refresh trigger
+    () => props.rootData()
+  );
 
   // Memoize expensive tree flattening computation
   const flattenedNodes = createMemo(() => {
@@ -295,6 +330,138 @@ export const TreeView = (props: TreeViewProps) => {
       newMap.set(nodeId, children);
       return newMap;
     });
+  };
+
+  const handleCut = (nodeId: string) => {
+    setCutNodeId(nodeId);
+  };
+
+  const handlePaste = (targetId: string) => {
+    const cutId = cutNodeId();
+    if (cutId && props.onCutPaste) {
+      props.onCutPaste(cutId, targetId);
+      // Refresh data by collapsing and re-expanding parent nodes
+      refreshAfterMove(cutId, targetId);
+      setCutNodeId(undefined);
+    }
+  };
+
+  const handleMoveToRoot = () => {
+    const cutId = cutNodeId();
+    if (cutId && props.onMoveToRoot) {
+      props.onMoveToRoot(cutId);
+      // Refresh data by collapsing and re-expanding parent nodes
+      refreshAfterMoveToRoot(cutId);
+      setCutNodeId(undefined);
+    }
+  };
+
+  const clearCut = () => {
+    setCutNodeId(undefined);
+  };
+
+  const getParentId = (nodeId: string, nodes: TreeNode[]): string | null => {
+    for (const node of nodes) {
+      const loadedChildrenForNode = loadedChildren().get(node.id);
+      if (loadedChildrenForNode && loadedChildrenForNode.some(child => child.id === nodeId)) {
+        return node.id;
+      }
+      
+      if (loadedChildrenForNode) {
+        const parentId = getParentId(nodeId, loadedChildrenForNode);
+        if (parentId) return parentId;
+      }
+    }
+    
+    // Check if it's a direct child of root
+    const rootNodesList = rootNodes();
+    if (rootNodesList && rootNodesList.some(node => node.id === nodeId)) {
+      return null; // Root level
+    }
+    
+    return null;
+  };
+
+  const refreshAfterMove = (sourceId: string, targetId: string) => {
+    const nodes = rootNodes();
+    if (!nodes) return;
+
+    // Get parent IDs
+    const sourceParentId = getParentId(sourceId, nodes);
+    const targetParentId = targetId;
+
+    // Store expansion states
+    const sourceParentWasExpanded = sourceParentId ? expandedNodes().has(sourceParentId) : false;
+    const targetParentWasExpanded = expandedNodes().has(targetParentId);
+
+    // Collapse both parents to force data refresh
+    setExpandedNodes(prev => {
+      const newSet = new Set(prev);
+      if (sourceParentId) newSet.delete(sourceParentId);
+      newSet.delete(targetParentId);
+      return newSet;
+    });
+
+    // Clear loaded children for both parents
+    setLoadedChildren(prev => {
+      const newMap = new Map(prev);
+      if (sourceParentId) newMap.delete(sourceParentId);
+      newMap.delete(targetParentId);
+      return newMap;
+    });
+
+    // Re-expand parents if they were expanded before
+    setTimeout(() => {
+      setExpandedNodes(prev => {
+        const newSet = new Set(prev);
+        if (sourceParentWasExpanded && sourceParentId) newSet.add(sourceParentId);
+        if (targetParentWasExpanded) newSet.add(targetParentId);
+        return newSet;
+      });
+    }, 100);
+  };
+
+  const refreshAfterMoveToRoot = (sourceId: string) => {
+    const nodes = rootNodes();
+    if (!nodes) return;
+
+    // Get parent ID
+    const sourceParentId = getParentId(sourceId, nodes);
+
+    // Store expansion state
+    const sourceParentWasExpanded = sourceParentId ? expandedNodes().has(sourceParentId) : false;
+
+    // Collapse source parent to force data refresh
+    if (sourceParentId) {
+      setExpandedNodes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(sourceParentId);
+        return newSet;
+      });
+
+      // Clear loaded children for source parent
+      setLoadedChildren(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(sourceParentId);
+        return newMap;
+      });
+
+      // Re-expand source parent if it was expanded before
+      setTimeout(() => {
+        if (sourceParentWasExpanded) {
+          setExpandedNodes(prev => {
+            const newSet = new Set(prev);
+            newSet.add(sourceParentId);
+            return newSet;
+          });
+        }
+      }, 100);
+    }
+
+    // Refresh root data by triggering the refresh signal
+    setTimeout(() => {
+      setRefreshTrigger(prev => prev + 1);
+    }, 200);
   };
 
   const expandAll = async () => {
@@ -660,6 +827,25 @@ export const TreeView = (props: TreeViewProps) => {
           handleFocus(flattened[flattened.length - 1]);
         }
         break;
+
+      case "x":
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          handleCut(currentNode.id);
+        }
+        break;
+
+      case "v":
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          handlePaste(currentNode.id);
+        }
+        break;
+
+      case "Escape":
+        e.preventDefault();
+        clearCut();
+        break;
     }
   };
 
@@ -673,6 +859,10 @@ export const TreeView = (props: TreeViewProps) => {
       collapseSome,
       foldCycle,
       focusAndReveal,
+      cut: handleCut,
+      paste: handlePaste,
+      moveToRoot: handleMoveToRoot,
+      clearCut,
     });
   });
 
@@ -690,10 +880,14 @@ export const TreeView = (props: TreeViewProps) => {
     focusedNodeId,
     selectedNodeId,
     loadedChildren,
+    cutNodeId,
     onSelect: handleSelect,
     onFocus: handleFocus,
     onExpand: handleExpand,
     onChildrenLoaded: handleChildrenLoaded,
+    onCut: handleCut,
+    onPaste: handlePaste,
+    onMoveToRoot: handleMoveToRoot,
     loadChildren: props.loadChildren,
   };
 

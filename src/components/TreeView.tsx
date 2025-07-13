@@ -33,6 +33,7 @@ export interface TreeItemProps {
   onFocus?: (node: TreeNode) => void;
   onExpand?: (nodeId: string) => void;
   loadChildren?: (nodeId: string) => Promise<TreeNode[]>;
+  onChildrenLoaded?: (nodeId: string, children: TreeNode[]) => void;
   expandedNodes?: Set<string>;
   focusedNodeId?: string;
   selectedNodeId?: string;
@@ -45,7 +46,14 @@ const TreeItem = (props: TreeItemProps) => {
   // Only load children if we don't have static children
   const [childrenResource] = createResource(
     () => expanded() && props.node.hasChildren && !props.node.children ? props.node.id : null,
-    (nodeId) => props.loadChildren?.(nodeId) || Promise.resolve([])
+    async (nodeId) => {
+      const children = await (props.loadChildren?.(nodeId) || Promise.resolve([]));
+      // Notify parent about loaded children so they can be included in keyboard navigation
+      if (children.length > 0) {
+        props.onChildrenLoaded?.(nodeId, children);
+      }
+      return children;
+    }
   );
 
   const handleToggle = () => {
@@ -134,6 +142,7 @@ const TreeItem = (props: TreeItemProps) => {
                       onFocus={props.onFocus}
                       onExpand={props.onExpand}
                       loadChildren={props.loadChildren}
+                      onChildrenLoaded={props.onChildrenLoaded}
                       expandedNodes={props.expandedNodes}
                       focusedNodeId={props.focusedNodeId}
                       selectedNodeId={props.selectedNodeId}
@@ -151,6 +160,7 @@ const TreeItem = (props: TreeItemProps) => {
                   onFocus={props.onFocus}
                   onExpand={props.onExpand}
                   loadChildren={props.loadChildren}
+                  onChildrenLoaded={props.onChildrenLoaded}
                   expandedNodes={props.expandedNodes}
                   focusedNodeId={props.focusedNodeId}
                   selectedNodeId={props.selectedNodeId}
@@ -168,6 +178,7 @@ export const TreeView = (props: TreeViewProps) => {
   const [selectedNode, setSelectedNode] = createSignal<TreeNode | null>(null);
   const [focusedNode, setFocusedNode] = createSignal<TreeNode | null>(null);
   const [expandedNodes, setExpandedNodes] = createSignal<Set<string>>(new Set());
+  const [loadedChildren, setLoadedChildren] = createSignal<Map<string, TreeNode[]>>(new Map());
   const [flattenedNodes, setFlattenedNodes] = createSignal<TreeNode[]>([]);
 
   let treeRef: HTMLDivElement | undefined;
@@ -176,24 +187,36 @@ export const TreeView = (props: TreeViewProps) => {
   const flattenTree = (nodes: TreeNode[], level = 0): TreeNode[] => {
     const flattened: TreeNode[] = [];
     const expanded = expandedNodes();
+    const loaded = loadedChildren();
     
     for (const node of nodes) {
       const nodeWithLevel = { ...node, level };
       flattened.push(nodeWithLevel);
       
       if (expanded.has(node.id)) {
-        // Handle both static children and lazy-loaded children
+        let childrenToFlatten: TreeNode[] = [];
+        
+        // Prioritize static children if available
         if (node.children && node.children.length > 0) {
-          flattened.push(...flattenTree(node.children, level + 1));
+          childrenToFlatten = node.children;
+        } 
+        // Otherwise use dynamically loaded children
+        else if (loaded.has(node.id)) {
+          childrenToFlatten = loaded.get(node.id) || [];
         }
-        // Note: For lazy-loaded children, we can't flatten them until they're loaded
-        // This is handled by the keyboard navigation logic
+        
+        if (childrenToFlatten.length > 0) {
+          flattened.push(...flattenTree(childrenToFlatten, level + 1));
+        }
       }
     }
     return flattened;
   };
 
   createEffect(() => {
+    // Re-flatten when expanded nodes or loaded children change
+    expandedNodes();
+    loadedChildren();
     setFlattenedNodes(flattenTree(props.nodes));
   });
 
@@ -218,6 +241,14 @@ export const TreeView = (props: TreeViewProps) => {
       return newSet;
     });
     props.onExpand?.(nodeId);
+  };
+
+  const handleChildrenLoaded = (nodeId: string, children: TreeNode[]) => {
+    setLoadedChildren(prev => {
+      const newMap = new Map(prev);
+      newMap.set(nodeId, children);
+      return newMap;
+    });
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -314,6 +345,7 @@ export const TreeView = (props: TreeViewProps) => {
             onFocus={handleFocus}
             onExpand={handleExpand}
             loadChildren={props.loadChildren}
+            onChildrenLoaded={handleChildrenLoaded}
             expandedNodes={expandedNodes()}
             focusedNodeId={focusedNode()?.id}
             selectedNodeId={selectedNode()?.id}

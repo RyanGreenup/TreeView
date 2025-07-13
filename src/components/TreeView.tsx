@@ -9,31 +9,37 @@ import {
   Suspense,
 } from "solid-js";
 
+type TreeSelectHandler = (node: TreeNode) => void;
+type TreeFocusHandler = (node: TreeNode) => void;
+type TreeExpandHandler = (nodeId: string) => void;
+type TreeChildrenLoader = (nodeId: string) => Promise<TreeNode[]>;
+type TreeChildrenLoadedHandler = (nodeId: string, children: TreeNode[]) => void;
+
 export interface TreeNode {
   id: string;
   label: string;
   children?: TreeNode[];
   hasChildren?: boolean;
   isExpanded?: boolean;
-  level?: number;
+  level: number;
 }
 
 export interface TreeViewProps {
   nodes: TreeNode[];
-  onSelect?: (node: TreeNode) => void;
-  onFocus?: (node: TreeNode) => void;
-  onExpand?: (nodeId: string) => void;
-  loadChildren?: (nodeId: string) => Promise<TreeNode[]>;
+  onSelect?: TreeSelectHandler;
+  onFocus?: TreeFocusHandler;
+  onExpand?: TreeExpandHandler;
+  loadChildren?: TreeChildrenLoader;
   class?: string;
 }
 
 export interface TreeItemProps {
   node: TreeNode;
-  onSelect?: (node: TreeNode) => void;
-  onFocus?: (node: TreeNode) => void;
-  onExpand?: (nodeId: string) => void;
-  loadChildren?: (nodeId: string) => Promise<TreeNode[]>;
-  onChildrenLoaded?: (nodeId: string, children: TreeNode[]) => void;
+  onSelect?: TreeSelectHandler;
+  onFocus?: TreeFocusHandler;
+  onExpand?: TreeExpandHandler;
+  loadChildren?: TreeChildrenLoader;
+  onChildrenLoaded?: TreeChildrenLoadedHandler;
   expandedNodes?: Set<string>;
   focusedNodeId?: string;
   selectedNodeId?: string;
@@ -71,7 +77,7 @@ const TreeItem = (props: TreeItemProps) => {
     props.onSelect?.(props.node);
   };
 
-  const level = props.node.level || 0;
+  const level = props.node.level;
   const isSelected = () => props.selectedNodeId === props.node.id;
   const isFocused = () => props.focusedNodeId === props.node.id;
 
@@ -321,7 +327,7 @@ export const TreeView = (props: TreeViewProps) => {
       e.preventDefault();
       if (currentNode.hasChildren && expandedNodes().has(currentNode.id)) {
         handleExpand(currentNode.id);
-      } else if (currentNode.level && currentNode.level > 0) {
+      } else if (currentNode.level > 0) {
         const parentLevel = currentNode.level - 1;
         for (let i = currentIndex - 1; i >= 0; i--) {
           if (flattened[i].level === parentLevel) {

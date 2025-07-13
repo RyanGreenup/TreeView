@@ -166,6 +166,34 @@ export default function TreeExample() {
     console.log("Expanded/Collapsed:", nodeId);
   };
 
+  const handleContextMenu = (node: TreeNode, event: MouseEvent) => {
+    console.log("Context menu for node:", node);
+    
+    // Simple context menu - you could enhance this with a proper dropdown
+    const action = prompt(
+      `Choose action for "${node.label}":\n1. Cut\n2. Paste\n3. Move to Root\n4. Cancel`,
+      "4",
+    );
+    
+    switch (action) {
+      case "1":
+        treeViewRef?.cut(node.id);
+        console.log("Cut node:", node.id);
+        break;
+      case "2":
+        treeViewRef?.paste(node.id);
+        console.log("Paste to node:", node.id);
+        break;
+      case "3":
+        handleCutPaste(node.id, "__virtual_root__");
+        treeViewRef?.refreshTree();
+        console.log("Moved to root:", node.id);
+        break;
+      default:
+        console.log("Context menu cancelled");
+    }
+  };
+
   return (
     <div class="container mx-auto p-8 space-y-8">
       <div class="hero bg-base-200 rounded-box">
@@ -271,6 +299,7 @@ export default function TreeExample() {
                 onFocus={handleFocus}
                 onExpand={handleExpand}
                 onCutPaste={handleCutPaste}
+                onContextMenu={handleContextMenu}
                 loadChildren={loadChildren}
                 ref={(ref) => (treeViewRef = ref)}
               />

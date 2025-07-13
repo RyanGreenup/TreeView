@@ -21,6 +21,7 @@ type TreeExpandHandler = (nodeId: string) => void;
 type TreeChildrenLoader = (nodeId: string) => Promise<TreeNode[]>;
 type TreeChildrenLoadedHandler = (nodeId: string, children: TreeNode[]) => void;
 type TreeCutPasteHandler = (sourceId: string, targetId: string) => boolean;
+type TreeContextMenuHandler = (node: TreeNode, event: MouseEvent) => void;
 
 interface TreeContextValue {
   expandedNodes: Accessor<Set<string>>;
@@ -35,6 +36,7 @@ interface TreeContextValue {
   onCut: (nodeId: string) => void;
   onPaste: (targetId: string) => void;
   onMoveToRoot: (nodeId?: string) => void;
+  onContextMenu?: TreeContextMenuHandler;
   loadChildren?: TreeChildrenLoader;
 }
 
@@ -62,6 +64,7 @@ export interface TreeViewProps {
   onFocus?: TreeFocusHandler;
   onExpand?: TreeExpandHandler;
   onCutPaste?: TreeCutPasteHandler;
+  onContextMenu?: TreeContextMenuHandler;
   class?: string;
   ref?: (ref: {
     expandAll: () => void;
@@ -130,22 +133,7 @@ const TreeItem = (props: TreeItemProps) => {
         onClick={handleClick}
         onContextMenu={(e) => {
           e.preventDefault();
-          // Simple context menu - you could enhance this with a proper dropdown
-          const action = prompt(
-            "Choose action:\n1. Cut\n2. Paste\n3. Move to Root\n4. Cancel",
-            "4",
-          );
-          switch (action) {
-            case "1":
-              ctx.onCut(props.node.id);
-              break;
-            case "2":
-              ctx.onPaste(props.node.id);
-              break;
-            case "3":
-              ctx.onMoveToRoot(props.node.id);
-              break;
-          }
+          ctx.onContextMenu?.(props.node, e);
         }}
         data-node-id={props.node.id}
         role="treeitem"
@@ -930,6 +918,7 @@ export const TreeView = (props: TreeViewProps) => {
     onCut: handleCut,
     onPaste: handlePaste,
     onMoveToRoot: handleMoveToRoot,
+    onContextMenu: props.onContextMenu,
     loadChildren: props.loadChildren,
   };
 

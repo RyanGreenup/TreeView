@@ -3,127 +3,87 @@ import { StatusDisplay } from "~/components/StatusDisplay";
 import { TreeNode, TreeView } from "~/components/TreeView";
 
 // Mock data for the tree - only root nodes
-const mockTreeData: TreeNode[] = [
-  {
-    id: "1",
-    label: "Documents",
-    hasChildren: true,
-    level: 0,
-  },
-  {
-    id: "2",
-    label: "Pictures",
-    hasChildren: true,
-    level: 0,
-  },
-  {
-    id: "3",
-    label: "Videos",
-    hasChildren: true,
-    level: 0,
-  },
-  {
-    id: "4",
-    label: "Music",
-    hasChildren: false,
-    level: 0,
-  },
+
+// Flat data structure representing the tree hierarchy
+const flatTreeData = [
+  // Root nodes
+  { id: "1", label: "Documents", parent_id: null },
+  { id: "2", label: "Pictures", parent_id: null },
+  { id: "3", label: "Videos", parent_id: null },
+  { id: "4", label: "Music", parent_id: null },
+
+  // Documents children
+  { id: "1-1", label: "Work", parent_id: "1" },
+  { id: "1-2", label: "Personal", parent_id: "1" },
+
+  // Work children
+  { id: "1-1-1", label: "Project A", parent_id: "1-1" },
+  { id: "1-1-2", label: "Project B", parent_id: "1-1" },
+  { id: "1-1-3", label: "Meeting Notes", parent_id: "1-1" },
+
+  // Personal children
+  { id: "1-2-1", label: "Tax Documents", parent_id: "1-2" },
+  { id: "1-2-2", label: "Insurance", parent_id: "1-2" },
+  { id: "1-2-3", label: "Receipts", parent_id: "1-2" },
+
+  // Project B children
+  { id: "1-1-2-1", label: "Design Files", parent_id: "1-1-2" },
+  { id: "1-1-2-2", label: "Code Review", parent_id: "1-1-2" },
+
+  // Receipts children
+  { id: "1-2-3-1", label: "2023", parent_id: "1-2-3" },
+  { id: "1-2-3-2", label: "2024", parent_id: "1-2-3" },
+
+  // Pictures children
+  { id: "2-1", label: "Vacation", parent_id: "2" },
+  { id: "2-2", label: "Family", parent_id: "2" },
+  { id: "2-3", label: "Screenshots", parent_id: "2" },
+
+  // Vacation children
+  { id: "2-1-1", label: "Beach Trip 2023", parent_id: "2-1" },
+  { id: "2-1-2", label: "Mountain Hike 2024", parent_id: "2-1" },
+
+  // Family children
+  { id: "2-2-1", label: "Birthday Party", parent_id: "2-2" },
+  { id: "2-2-2", label: "Christmas 2023", parent_id: "2-2" },
+
+  // Videos children
+  { id: "3-1", label: "Tutorials", parent_id: "3" },
+  { id: "3-2", label: "Movies", parent_id: "3" },
+  { id: "3-3", label: "Personal", parent_id: "3" },
+
+  // Movies children
+  { id: "3-2-1", label: "Action", parent_id: "3-2" },
+  { id: "3-2-2", label: "Comedy", parent_id: "3-2" },
+  { id: "3-2-3", label: "Documentary", parent_id: "3-2" },
 ];
 
-// Mutable hashmap to store children data
-const childrenMap = new Map<string, TreeNode[]>([
-  [
-    "1",
-    [
-      { id: "1-1", label: "Work", hasChildren: true, level: 0 },
-      { id: "1-2", label: "Personal", hasChildren: true, level: 0 },
-    ],
-  ],
-  [
-    "1-1",
-    [
-      { id: "1-1-1", label: "Project A", hasChildren: false, level: 0 },
-      { id: "1-1-2", label: "Project B", hasChildren: true, level: 0 },
-      { id: "1-1-3", label: "Meeting Notes", hasChildren: false, level: 0 },
-    ],
-  ],
-  [
-    "1-2",
-    [
-      { id: "1-2-1", label: "Tax Documents", hasChildren: false, level: 0 },
-      { id: "1-2-2", label: "Insurance", hasChildren: false, level: 0 },
-      { id: "1-2-3", label: "Receipts", hasChildren: true, level: 0 },
-    ],
-  ],
-  [
-    "1-1-2",
-    [
-      { id: "1-1-2-1", label: "Design Files", hasChildren: false, level: 0 },
-      { id: "1-1-2-2", label: "Code Review", hasChildren: false, level: 0 },
-    ],
-  ],
-  [
-    "1-2-3",
-    [
-      { id: "1-2-3-1", label: "2023", hasChildren: false, level: 0 },
-      { id: "1-2-3-2", label: "2024", hasChildren: false, level: 0 },
-    ],
-  ],
-  [
-    "2",
-    [
-      { id: "2-1", label: "Vacation", hasChildren: true, level: 0 },
-      { id: "2-2", label: "Family", hasChildren: true, level: 0 },
-      { id: "2-3", label: "Screenshots", hasChildren: false, level: 0 },
-    ],
-  ],
-  [
-    "2-1",
-    [
-      { id: "2-1-1", label: "Beach Trip 2023", hasChildren: false, level: 0 },
-      {
-        id: "2-1-2",
-        label: "Mountain Hike 2024",
-        hasChildren: false,
-        level: 0,
-      },
-    ],
-  ],
-  [
-    "2-2",
-    [
-      { id: "2-2-1", label: "Birthday Party", hasChildren: false, level: 0 },
-      { id: "2-2-2", label: "Christmas 2023", hasChildren: false, level: 0 },
-    ],
-  ],
-  [
-    "3",
-    [
-      { id: "3-1", label: "Tutorials", hasChildren: false, level: 0 },
-      { id: "3-2", label: "Movies", hasChildren: true, level: 0 },
-      { id: "3-3", label: "Personal", hasChildren: false, level: 0 },
-    ],
-  ],
-  [
-    "3-2",
-    [
-      { id: "3-2-1", label: "Action", hasChildren: false, level: 0 },
-      { id: "3-2-2", label: "Comedy", hasChildren: false, level: 0 },
-      { id: "3-2-3", label: "Documentary", hasChildren: false, level: 0 },
-    ],
-  ],
-]);
-
+const rootData: TreeNode[] = flatTreeData
+  .filter((item) => item.parent_id === null)
+  .map((item) => ({
+    id: item.id,
+    label: item.label,
+    hasChildren: flatTreeData.some((child) => child.parent_id === item.id),
+    level: 0,
+  }));
 
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
   // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 300));
 
-  // Return mock children from hashmap
-  return childrenMap.get(nodeId) || [];
-};
+  // Find children from flat data structure
+  const children = flatTreeData
+    .filter((item) => item.parent_id === nodeId)
+    .map((item) => ({
+      id: item.id,
+      label: item.label,
+      hasChildren: flatTreeData.some((child) => child.parent_id === item.id),
+      level: 0,
+    }));
 
+  return children;
+};
 export default function TreeExample() {
   const [selectedItem, setSelectedItem] = createSignal<TreeNode | null>(null);
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
@@ -231,7 +191,7 @@ export default function TreeExample() {
                 </div>
               </div>
               <TreeView
-                nodes={mockTreeData}
+                nodes={rootData}
                 onSelect={handleSelect}
                 onFocus={handleFocus}
                 onExpand={handleExpand}

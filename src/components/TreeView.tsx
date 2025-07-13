@@ -1,12 +1,11 @@
 import {
-  createSignal,
+  createEffect,
   createResource,
+  createSignal,
   For,
+  onMount,
   Show,
   Suspense,
-  onMount,
-  createEffect,
-  JSX,
 } from "solid-js";
 
 export interface TreeNode {
@@ -78,11 +77,11 @@ const TreeItem = (props: TreeItemProps) => {
   return (
     <li>
       <a
-        class={`
-          flex items-center gap-2
-          ${isSelected() ? "active" : ""}
-          ${isFocused() ? "ring-2 ring-primary ring-offset-2 ring-offset-base-200" : ""}
-        `}
+        classList={{
+          "items-center gap-2 flex": true,
+          active: isSelected(),
+          "ring-2 ring-primary ring-offset-2 ring-offset-base-200": isFocused(),
+        }}
         onClick={handleClick}
         data-node-id={props.node.id}
         role="treeitem"
@@ -104,7 +103,10 @@ const TreeItem = (props: TreeItemProps) => {
             aria-label={expanded() ? "Collapse" : "Expand"}
           >
             <svg
-              class={`w-3 h-3 transition-transform duration-200 ${expanded() ? "rotate-90" : ""}`}
+              classList={{
+                "w-3 h-3 transition-transform duration-200": true,
+                "rotate-90": expanded(),
+              }}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -214,7 +216,8 @@ const scrollIntoViewIfNeeded = (
       if (isAbove) {
         container.scrollTop = Math.max(0, elementTop - padding);
       } else if (isBelow) {
-        container.scrollTop = elementTop - containerHeight + elementHeight + padding;
+        container.scrollTop =
+          elementTop - containerHeight + elementHeight + padding;
       }
     }
   }
@@ -319,63 +322,79 @@ export const TreeView = (props: TreeViewProps) => {
 
     const currentIndex = flattened.findIndex((n) => n.id === currentNode.id);
 
+    const focusDown = () => {
+      e.preventDefault();
+      if (currentIndex < flattened.length - 1) {
+        const nextNode = flattened[currentIndex + 1];
+        handleFocus(nextNode);
+      }
+    };
+    const focusUp = () => {
+      e.preventDefault();
+      if (currentIndex > 0) {
+        const prevNode = flattened[currentIndex - 1];
+        handleFocus(prevNode);
+      }
+    };
+    const handleArrowRight = () => {
+      e.preventDefault();
+      if (currentNode.hasChildren && !expandedNodes().has(currentNode.id)) {
+        handleExpand(currentNode.id);
+      } else if (
+        currentNode.hasChildren &&
+        expandedNodes().has(currentNode.id) &&
+        flattened[currentIndex + 1]
+      ) {
+        const nextNode = flattened[currentIndex + 1];
+        handleFocus(nextNode);
+      }
+    };
+    const handleArrowLeft = () => {
+      e.preventDefault();
+      if (currentNode.hasChildren && expandedNodes().has(currentNode.id)) {
+        handleExpand(currentNode.id);
+      } else if (currentNode.level && currentNode.level > 0) {
+        const parentLevel = currentNode.level - 1;
+        for (let i = currentIndex - 1; i >= 0; i--) {
+          if (flattened[i].level === parentLevel) {
+            handleFocus(flattened[i]);
+            break;
+          }
+        }
+      }
+    };
+    const handleHome = () => {
+      e.preventDefault();
+      if (flattened.length > 0) {
+        handleFocus(flattened[0]);
+      }
+    };
+
     switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        if (currentIndex < flattened.length - 1) {
-          const nextNode = flattened[currentIndex + 1];
-          handleFocus(nextNode);
-        }
-        break;
-
-      case "ArrowUp":
-        e.preventDefault();
-        if (currentIndex > 0) {
-          const prevNode = flattened[currentIndex - 1];
-          handleFocus(prevNode);
-        }
-        break;
-
-      case "ArrowRight":
-        e.preventDefault();
-        if (currentNode.hasChildren && !expandedNodes().has(currentNode.id)) {
-          handleExpand(currentNode.id);
-        } else if (
-          currentNode.hasChildren &&
-          expandedNodes().has(currentNode.id) &&
-          flattened[currentIndex + 1]
-        ) {
-          const nextNode = flattened[currentIndex + 1];
-          handleFocus(nextNode);
-        }
+      case "Home":
+        handleHome();
         break;
 
       case "ArrowLeft":
-        e.preventDefault();
-        if (currentNode.hasChildren && expandedNodes().has(currentNode.id)) {
-          handleExpand(currentNode.id);
-        } else if (currentNode.level && currentNode.level > 0) {
-          const parentLevel = currentNode.level - 1;
-          for (let i = currentIndex - 1; i >= 0; i--) {
-            if (flattened[i].level === parentLevel) {
-              handleFocus(flattened[i]);
-              break;
-            }
-          }
-        }
+        handleArrowLeft();
+        break;
+
+      case "ArrowRight":
+        handleArrowRight();
+        break;
+
+      case "ArrowUp":
+        focusUp();
+        break;
+
+      case "ArrowDown":
+        focusDown();
         break;
 
       case "Enter":
       case " ":
         e.preventDefault();
         handleSelect(currentNode);
-        break;
-
-      case "Home":
-        e.preventDefault();
-        if (flattened.length > 0) {
-          handleFocus(flattened[0]);
-        }
         break;
 
       case "End":
@@ -405,7 +424,7 @@ export const TreeView = (props: TreeViewProps) => {
   return (
     <div
       ref={containerRef}
-      class={`max-h-96 overflow-y-auto ${props.class || ''}`}
+      class={`max-h-96 overflow-y-auto ${props.class || ""}`}
     >
       <ul
         ref={treeRef}

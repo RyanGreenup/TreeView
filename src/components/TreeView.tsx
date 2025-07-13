@@ -6,11 +6,14 @@ import {
   createResource,
   createSignal,
   For,
+  JSXElement,
   onMount,
   Show,
   Suspense,
   useContext,
 } from "solid-js";
+
+import { Transition } from "solid-transition-group";
 
 type TreeSelectHandler = (node: TreeNode) => void;
 type TreeFocusHandler = (node: TreeNode) => void;
@@ -64,7 +67,7 @@ export interface TreeItemProps {
 
 const TreeItem = (props: TreeItemProps) => {
   const ctx = useTreeContext();
-  
+
   // Use the expanded state from context
   const expanded = () => ctx.expandedNodes().has(props.node.id);
 
@@ -135,41 +138,37 @@ const TreeItem = (props: TreeItemProps) => {
         <span class="flex-1">{props.node.label}</span>
       </a>
 
-      <Show when={expanded() && props.node.hasChildren}>
-        <ul>
-          <Show
-            when={props.node.children && props.node.children.length > 0}
-            fallback={
-              <Suspense
-                fallback={
-                  <li class="px-4 py-2">
-                    <div class="flex items-center gap-2 text-sm opacity-60">
-                      <span class="loading loading-spinner loading-xs"></span>
-                      <span>Loading...</span>
-                    </div>
-                  </li>
-                }
-              >
-                <For each={childrenResource()}>
-                  {(child) => (
-                    <TreeItem
-                      node={{ ...child, level: level + 1 }}
-                    />
-                  )}
-                </For>
-              </Suspense>
-            }
-          >
-            <For each={props.node.children}>
-              {(child) => (
-                <TreeItem
-                  node={{ ...child, level: level + 1 }}
-                />
-              )}
-            </For>
-          </Show>
-        </ul>
-      </Show>
+      <TreeElementTransition>
+        <Show when={expanded() && props.node.hasChildren}>
+          <ul>
+            <Show
+              when={props.node.children && props.node.children.length > 0}
+              fallback={
+                <Suspense
+                  fallback={
+                    <li class="px-4 py-2">
+                      <div class="flex items-center gap-2 text-sm opacity-60">
+                        <span class="loading loading-spinner loading-xs"></span>
+                        <span>Loading...</span>
+                      </div>
+                    </li>
+                  }
+                >
+                  <For each={childrenResource()}>
+                    {(child) => (
+                      <TreeItem node={{ ...child, level: level + 1 }} />
+                    )}
+                  </For>
+                </Suspense>
+              }
+            >
+              <For each={props.node.children}>
+                {(child) => <TreeItem node={{ ...child, level: level + 1 }} />}
+              </For>
+            </Show>
+          </ul>
+        </Show>
+      </TreeElementTransition>
     </li>
   );
 };
@@ -219,7 +218,6 @@ const scrollIntoViewIfNeeded = (
   }
 };
 
-
 export const TreeView = (props: TreeViewProps) => {
   const [selectedNode, setSelectedNode] = createSignal<TreeNode | null>(null);
   const [focusedNode, setFocusedNode] = createSignal<TreeNode | null>(null);
@@ -233,8 +231,8 @@ export const TreeView = (props: TreeViewProps) => {
   let containerRef: HTMLDivElement | undefined;
 
   // Memoize expensive tree flattening computation
-  const flattenedNodes = createMemo(() => 
-    flattenTree(props.nodes, undefined, expandedNodes, loadedChildren)
+  const flattenedNodes = createMemo(() =>
+    flattenTree(props.nodes, undefined, expandedNodes, loadedChildren),
   );
 
   // Memoize accessor functions to prevent creating new functions on every render
@@ -244,7 +242,7 @@ export const TreeView = (props: TreeViewProps) => {
   // Memoize current index for keyboard navigation
   const currentNodeIndex = createMemo(() => {
     const currentNode = focusedNode();
-    return currentNode 
+    return currentNode
       ? flattenedNodes().findIndex((n) => n.id === currentNode.id)
       : -1;
   });
@@ -422,11 +420,7 @@ export const TreeView = (props: TreeViewProps) => {
           onKeyDown={handleKeyDown}
         >
           <For each={props.nodes}>
-            {(node) => (
-              <TreeItem
-                node={{ ...node, level: 0 }}
-              />
-            )}
+            {(node) => <TreeItem node={{ ...node, level: 0 }} />}
           </For>
         </ul>
       </div>
@@ -438,7 +432,6 @@ interface ExpandCollapseIconProps {
   expanded: boolean;
   class?: string;
 }
-
 
 // Helper Functions / Components
 
@@ -461,8 +454,6 @@ const ExpandCollapseIcon = (props: ExpandCollapseIconProps) => (
     />
   </svg>
 );
-
-
 
 // Flatten the tree structure for keyboard navigation
 const flattenTree = (
@@ -505,4 +496,36 @@ const flattenTree = (
     }
   }
   return flattened;
+};
+
+const TreeElementTransition = (props: { children: JSXElement }): JSXElement => {
+  return (
+    <Transition
+      enterActiveClass="transition-all duration-200 ease-in-out"
+      enterClass="opacity-0 max-h-0 -translate-y-2"
+      enterToClass="opacity-100 max-h-96 translate-y-0"
+      exitActiveClass="transition-all duration-200 ease-in-out"
+      exitClass="opacity-100 max-h-96 translate-y-0"
+      exitToClass="opacity-0 max-h-0 -translate-y-2"
+    >
+      {props.children}
+    </Transition>
+  );
+};
+
+const ReplaceLoadingSpinnerTransition = (props: {
+  children: JSXElement;
+}): JSXElement => {
+  return (
+    <Transition
+      enterActiveClass="transition-all duration-300 ease-out"
+      enterClass="opacity-0 scale-95"
+      enterToClass="opacity-100 scale-100"
+      exitActiveClass="transition-all duration-200 ease-in"
+      exitClass="opacity-100 scale-100"
+      exitToClass="opacity-0 scale-95"
+    >
+      {props.children}
+    </Transition>
+  );
 };

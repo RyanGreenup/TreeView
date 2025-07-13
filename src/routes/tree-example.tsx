@@ -58,14 +58,40 @@ const flatTreeData = [
   { id: "3-2-3", label: "Documentary", parent_id: "3-2" },
 ];
 
-const rootData: TreeNode[] = flatTreeData
-  .filter((item) => item.parent_id === null)
-  .map((item) => ({
-    id: item.id,
-    label: item.label,
-    hasChildren: flatTreeData.some((child) => child.parent_id === item.id),
-    level: 0,
-  }));
+const handleCutPaste = (source_id: string, target_id: string) => {
+  // Find the source item in the flat data structure
+  const sourceItem = flatTreeData.find((item) => item.id === source_id);
+
+  if (sourceItem) {
+    // Update the parent_id to move the item to the new target
+    sourceItem.parent_id = target_id;
+  }
+};
+
+const handleMoveToRoot = (source_id: string) => {
+  // Find the source item in the flat data structure
+  const sourceItem = flatTreeData.find((item) => item.id === source_id);
+
+  if (sourceItem) {
+    // Update the parent_id to null to move the item to the root
+    sourceItem.parent_id = null;
+  }
+};
+
+// Mock function to simulate loading root data from a remote source
+const loadRootData = async (): Promise<TreeNode[]> => {
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  return flatTreeData
+    .filter((item) => item.parent_id === null)
+    .map((item) => ({
+      id: item.id,
+      label: item.label,
+      hasChildren: flatTreeData.some((child) => child.parent_id === item.id),
+      level: 0,
+    }));
+};
 
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
@@ -191,7 +217,7 @@ export default function TreeExample() {
                 </div>
               </div>
               <TreeView
-                nodes={rootData}
+                rootData={loadRootData}
                 onSelect={handleSelect}
                 onFocus={handleFocus}
                 onExpand={handleExpand}

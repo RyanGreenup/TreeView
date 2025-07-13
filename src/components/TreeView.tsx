@@ -52,7 +52,7 @@ export interface TreeNode {
 }
 
 export interface TreeViewProps {
-  nodes: TreeNode[];
+  rootData: () => Promise<TreeNode[]>;
   onSelect?: TreeSelectHandler;
   onFocus?: TreeFocusHandler;
   onExpand?: TreeExpandHandler;
@@ -229,10 +229,14 @@ export const TreeView = (props: TreeViewProps) => {
   let treeRef: HTMLUListElement | undefined;
   let containerRef: HTMLDivElement | undefined;
 
+  // Load root data asynchronously
+  const [rootNodes] = createResource(props.rootData);
+
   // Memoize expensive tree flattening computation
-  const flattenedNodes = createMemo(() =>
-    flattenTree(props.nodes, undefined, expandedNodes, loadedChildren),
-  );
+  const flattenedNodes = createMemo(() => {
+    const nodes = rootNodes();
+    return nodes ? flattenTree(nodes, undefined, expandedNodes, loadedChildren) : [];
+  });
 
   // Memoize accessor functions to prevent creating new functions on every render
   const focusedNodeId = createMemo(() => focusedNode()?.id);
@@ -343,7 +347,10 @@ export const TreeView = (props: TreeViewProps) => {
       }
     };
 
-    await expandLevel(props.nodes);
+    const nodes = rootNodes();
+    if (nodes) {
+      await expandLevel(nodes);
+    }
   };
 
   const collapseAll = () => {
@@ -381,7 +388,9 @@ export const TreeView = (props: TreeViewProps) => {
       return;
     }
 
-    const pathToNode = getPathToNode(node.id, props.nodes);
+    const nodes = rootNodes();
+    if (!nodes) return;
+    const pathToNode = getPathToNode(node.id, nodes);
     if (pathToNode) {
       setExpandedNodes(new Set(pathToNode.slice(0, -1)));
     } else {
@@ -400,23 +409,26 @@ export const TreeView = (props: TreeViewProps) => {
   const collapseSome = () => {
     const focused = focusedNode();
     const selected = selectedNode();
+    const nodes = rootNodes();
 
     if (!focused && !selected) {
       collapseAll();
       return;
     }
 
+    if (!nodes) return;
+
     const pathsToKeep = new Set<string>();
 
     if (focused) {
-      const pathToFocused = getPathToNode(focused.id, props.nodes);
+      const pathToFocused = getPathToNode(focused.id, nodes);
       if (pathToFocused) {
         pathToFocused.slice(0, -1).forEach((id) => pathsToKeep.add(id));
       }
     }
 
     if (selected && selected.id !== focused?.id) {
-      const pathToSelected = getPathToNode(selected.id, props.nodes);
+      const pathToSelected = getPathToNode(selected.id, nodes);
       if (pathToSelected) {
         pathToSelected.slice(0, -1).forEach((id) => pathsToKeep.add(id));
       }
@@ -442,7 +454,9 @@ export const TreeView = (props: TreeViewProps) => {
           return ids;
         };
 
-        const topLevelParentIds = getTopLevelParentIds(props.nodes);
+        const nodes = rootNodes();
+        if (!nodes) return;
+        const topLevelParentIds = getTopLevelParentIds(nodes);
         setExpandedNodes(new Set(topLevelParentIds));
         setFoldCycleState(1);
         break;
@@ -479,7 +493,9 @@ export const TreeView = (props: TreeViewProps) => {
     };
 
     // First try to find the node in the current tree
-    let targetNode = findNodeInTree(nodeId, props.nodes);
+    const nodes = rootNodes();
+    if (!nodes) return;
+    let targetNode = findNodeInTree(nodeId, nodes);
 
     // If not found, we need to progressively expand and load children
     if (!targetNode) {
@@ -532,7 +548,7 @@ export const TreeView = (props: TreeViewProps) => {
         return null;
       };
 
-      targetNode = await expandAndSearch(props.nodes, nodeId);
+      targetNode = await expandAndSearch(nodes, nodeId);
     }
 
     if (!targetNode) {
@@ -541,7 +557,7 @@ export const TreeView = (props: TreeViewProps) => {
     }
 
     // Get path to the target node and ensure all parents are expanded
-    const pathToTarget = getPathToNode(nodeId, props.nodes);
+    const pathToTarget = getPathToNode(nodeId, nodes);
     if (pathToTarget) {
       // Expand all parent nodes (exclude the target node itself)
       const parentsToExpand = pathToTarget.slice(0, -1);
@@ -648,11 +664,6 @@ export const TreeView = (props: TreeViewProps) => {
   };
 
   onMount(() => {
-    if (props.nodes.length > 0) {
-      setFocusedNode(props.nodes[0]);
-      // The reactive effect will handle scrolling
-    }
-
     // Expose API methods via ref
     props.ref?.({
       expandAll,
@@ -663,6 +674,14 @@ export const TreeView = (props: TreeViewProps) => {
       foldCycle,
       focusAndReveal,
     });
+  });
+
+  // Set focus on first node when root data loads
+  createEffect(() => {
+    const nodes = rootNodes();
+    if (nodes && nodes.length > 0 && !focusedNode()) {
+      setFocusedNode(nodes[0]);
+    }
   });
 
   // Memoize context value to prevent unnecessary re-renders
@@ -692,9 +711,20 @@ export const TreeView = (props: TreeViewProps) => {
           tabIndex={0}
           onKeyDown={handleKeyDown}
         >
-          <For each={props.nodes}>
-            {(node) => <TreeItem node={{ ...node, level: 0 }} />}
-          </For>
+          <Suspense
+            fallback={
+              <li class="px-4 py-2">
+                <div class="flex items-center gap-2 text-sm opacity-60">
+                  <span class="loading loading-spinner loading-xs"></span>
+                  <span>Loading tree...</span>
+                </div>
+              </li>
+            }
+          >
+            <For each={rootNodes()}>
+              {(node) => <TreeItem node={{ ...node, level: 0 }} />}
+            </For>
+          </Suspense>
         </ul>
       </div>
     </TreeContext.Provider>

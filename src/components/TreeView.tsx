@@ -64,6 +64,7 @@ export interface TreeViewProps {
     collapseAll: () => void;
     collapseAllExceptFocused: () => void;
     collapseAllExceptSelected: () => void;
+    collapseSome: () => void;
   }) => void;
 }
 
@@ -379,6 +380,34 @@ export const TreeView = (props: TreeViewProps) => {
     collapseAllExceptNode(selectedNode());
   };
 
+  const collapseSome = () => {
+    const focused = focusedNode();
+    const selected = selectedNode();
+    
+    if (!focused && !selected) {
+      collapseAll();
+      return;
+    }
+
+    const pathsToKeep = new Set<string>();
+
+    if (focused) {
+      const pathToFocused = getPathToNode(focused.id, props.nodes);
+      if (pathToFocused) {
+        pathToFocused.slice(0, -1).forEach(id => pathsToKeep.add(id));
+      }
+    }
+
+    if (selected && selected.id !== focused?.id) {
+      const pathToSelected = getPathToNode(selected.id, props.nodes);
+      if (pathToSelected) {
+        pathToSelected.slice(0, -1).forEach(id => pathsToKeep.add(id));
+      }
+    }
+
+    setExpandedNodes(pathsToKeep);
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     const flattened = flattenedNodes();
     const currentNode = focusedNode();
@@ -482,6 +511,7 @@ export const TreeView = (props: TreeViewProps) => {
       collapseAll,
       collapseAllExceptFocused,
       collapseAllExceptSelected,
+      collapseSome,
     });
   });
 

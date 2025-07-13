@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import { TreeView, TreeNode } from "~/components/TreeView";
+import { StatusDisplay } from "~/components/StatusDisplay";
 
 // Mock data for the tree
 const mockTreeData: TreeNode[] = [
@@ -158,38 +159,26 @@ export default function TreeExample() {
               <h2 class="card-title">Current Status</h2>
               
               <div class="space-y-4">
-                <div>
-                  <h3 class="font-semibold text-sm opacity-70 mb-2">FOCUSED ITEM</h3>
-                  <div class="mockup-code bg-base-200 text-xs">
-                    {focusedItem() ? (
-                      <pre><code>{JSON.stringify({
-                        id: focusedItem()!.id,
-                        label: focusedItem()!.label,
-                        level: focusedItem()!.level || 0
-                      }, null, 2)}</code></pre>
-                    ) : (
-                      <pre><code>null</code></pre>
-                    )}
-                  </div>
-                </div>
+                <StatusDisplay 
+                  title="FOCUSED ITEM"
+                  data={focusedItem() ? {
+                    id: focusedItem()!.id,
+                    label: focusedItem()!.label,
+                    level: focusedItem()!.level || 0
+                  } : null}
+                />
+                
+                <StatusDisplay 
+                  title="SELECTED ITEM"
+                  data={selectedItem() ? {
+                    id: selectedItem()!.id,
+                    label: selectedItem()!.label,
+                    hasChildren: selectedItem()!.hasChildren
+                  } : null}
+                />
                 
                 <div>
-                  <h3 class="font-semibold text-sm opacity-70 mb-2">SELECTED ITEM</h3>
-                  <div class="mockup-code bg-base-200 text-xs">
-                    {selectedItem() ? (
-                      <pre><code>{JSON.stringify({
-                        id: selectedItem()!.id,
-                        label: selectedItem()!.label,
-                        hasChildren: selectedItem()!.hasChildren
-                      }, null, 2)}</code></pre>
-                    ) : (
-                      <pre><code>null</code></pre>
-                    )}
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 class="font-semibold text-sm opacity-70 mb-2">EXPANDED NODES</h3>
+                  <h3 class="font-semibold text-sm text-base-content/70 mb-2">EXPANDED NODES</h3>
                   <div class="flex flex-wrap gap-1">
                     {expandedItems().length > 0 ? (
                       expandedItems().map(id => (

@@ -476,7 +476,8 @@ const flattenTree = (
   const loaded = loadedChildren();
 
   for (const node of nodes) {
-    const nodeWithLevel = { ...node, level };
+    // Only create new object if level differs from current node level
+    const nodeWithLevel = node.level === level ? node : { ...node, level };
     flattened.push(nodeWithLevel);
 
     if (expanded.has(node.id)) {

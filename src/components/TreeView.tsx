@@ -46,6 +46,7 @@ export const TreeView = (props: TreeViewProps) => {
   const [foldCycleState, setFoldCycleState] = createSignal<FoldCycleState>(0);
   const [cutNodeId, setCutNodeId] = createSignal<string | undefined>(undefined);
   const [editingNodeId, setEditingNodeId] = createSignal<string | undefined>(undefined);
+  const [pendingFocusNodeId, setPendingFocusNodeId] = createSignal<string | undefined>(undefined);
   const [pendingExpansions, setPendingExpansions] = createSignal<
     Map<string, boolean>
   >(new Map());
@@ -169,27 +170,26 @@ export const TreeView = (props: TreeViewProps) => {
       return newMap;
     });
 
-    // If it was expanded, force a collapse then re-expansion to trigger data loading
-    if (wasExpanded) {
-      // First collapse the node
-      setExpandedNodes((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(parentId);
-        return newSet;
-      });
-      
-      // Then queue it for re-expansion
-      setPendingExpansions(new Map([[parentId, true]]));
-    }
+    // Always collapse first to ensure we trigger the reload
+    setExpandedNodes((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(parentId);
+      return newSet;
+    });
+    
+    // Then queue it for expansion (even if it wasn't expanded before, we want to show the new item)
+    setPendingExpansions(new Map([[parentId, true]]));
   };
 
   const handleCreateNew = (parentId?: string) => {
     const targetParentId = parentId || focusedNode()?.id || VIRTUAL_ROOT_ID;
     
     if (others.onCreate) {
-      const success = others.onCreate(targetParentId);
-      if (success) {
+      const newItemId = others.onCreate(targetParentId);
+      if (newItemId) {
         refreshSingleParent(targetParentId);
+        // Queue the new item for focusing after the parent refreshes
+        setPendingFocusNodeId(newItemId);
       }
     }
   };
@@ -616,6 +616,22 @@ export const TreeView = (props: TreeViewProps) => {
       treeRef.focus();
     }
     return editing;
+  });
+
+  // Focus newly created items when they become available
+  createEffect(() => {
+    const pendingNodeId = pendingFocusNodeId();
+    if (pendingNodeId) {
+      // Try to find the node in the current flattened nodes
+      const flattened = flattenedNodes();
+      const nodeExists = flattened.some(node => node.id === pendingNodeId);
+      
+      if (nodeExists) {
+        // Node is now available, focus and reveal it
+        focusAndReveal(pendingNodeId);
+        setPendingFocusNodeId(undefined);
+      }
+    }
   });
 
   const contextValue = createMemo((): TreeContextValue => ({

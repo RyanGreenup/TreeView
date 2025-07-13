@@ -15,7 +15,7 @@ export type TreeChildrenLoader = (nodeId: string) => Promise<TreeNode[]>;
 export type TreeChildrenLoadedHandler = (nodeId: string, children: TreeNode[]) => void;
 export type TreeCutPasteHandler = (sourceId: string, targetId: string) => boolean;
 export type TreeRenameHandler = (nodeId: string, newLabel: string) => boolean;
-export type TreeCreateHandler = (parentId: string) => boolean;
+export type TreeCreateHandler = (parentId: string) => string | null;
 export type TreeContextMenuHandler = (node: TreeNode, event: MouseEvent) => void;
 
 export interface TreeContextValue {

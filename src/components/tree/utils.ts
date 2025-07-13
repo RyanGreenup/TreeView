@@ -99,27 +99,34 @@ export const getPathToNode = (
   loadedChildren: Map<string, TreeNode[]>,
   virtualRootId: string,
 ): string[] | null => {
-  const findPath = (
-    targetId: string,
-    currentPath: string[] = [],
-  ): string[] | null => {
-    for (const [parentId, children] of loadedChildren.entries()) {
-      for (const child of children) {
-        const pathToChild = [...currentPath, parentId, child.id];
-
-        if (child.id === targetId) {
-          return pathToChild.filter((id) => id !== virtualRootId);
-        }
-
-        const childrenOfChild = loadedChildren.get(child.id);
-        if (childrenOfChild) {
-          const foundPath = findPath(targetId, pathToChild.slice(0, -1));
-          if (foundPath) return foundPath;
-        }
-      }
+  // Build a parent lookup map
+  const parentMap = new Map<string, string>();
+  
+  for (const [parentId, children] of loadedChildren.entries()) {
+    for (const child of children) {
+      parentMap.set(child.id, parentId);
     }
-    return null;
-  };
-
-  return findPath(nodeId);
+  }
+  
+  // Build path from target to root
+  const path: string[] = [];
+  let currentNodeId = nodeId;
+  
+  while (currentNodeId && currentNodeId !== virtualRootId) {
+    path.unshift(currentNodeId);
+    currentNodeId = parentMap.get(currentNodeId) || '';
+    
+    // Safety check to prevent infinite loops
+    if (path.length > 100) {
+      console.warn('Path building exceeded maximum depth, possible cycle detected');
+      return null;
+    }
+  }
+  
+  // If we found a path to the virtual root, return it
+  if (currentNodeId === virtualRootId || path.length > 0) {
+    return path;
+  }
+  
+  return null;
 };

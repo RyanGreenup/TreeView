@@ -126,16 +126,16 @@ const handleRename = (node_id: string, new_label: string): boolean => {
  * Handles creating a new item in the tree by adding it to the flat data structure.
  * 
  * @param parent_id - The ID of the parent node where the new item will be created
- * @returns boolean - Returns true if the operation was successful, false otherwise
+ * @returns string | null - Returns the ID of the new item if successful, null otherwise
  * 
  * @example
  * // Create a new item under "Personal"
- * handleCreateNew("1-2");
+ * const newItemId = handleCreateNew("1-2");
  * 
  * // Create a new item at root level
- * handleCreateNew("__virtual_root__");
+ * const newItemId = handleCreateNew("__virtual_root__");
  */
-const handleCreateNew = (parent_id: string): boolean => {
+const handleCreateNew = (parent_id: string): string | null => {
   // Generate a unique ID for the new item
   const timestamp = Date.now();
   const newId = `new-${timestamp}`;
@@ -151,7 +151,7 @@ const handleCreateNew = (parent_id: string): boolean => {
   flatTreeData.push(newItem);
   console.log(`Created new item "${newItem.label}" with ID ${newId} under parent ${parent_id}`);
   
-  return true;
+  return newId;
 };
 
 // Mock function to simulate loading children from a remote source

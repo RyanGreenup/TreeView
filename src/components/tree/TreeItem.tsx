@@ -1,0 +1,136 @@
+import { createResource, For, Show, Suspense } from "solid-js";
+import { Transition } from "solid-transition-group";
+import { TreeItemProps } from "./types";
+import { useTreeContext } from "./context";
+import { ANIMATION_CLASSES } from "./constants";
+
+const ExpandCollapseIcon = (props: { expanded: boolean; class?: string }) => (
+  <svg
+    classList={{
+      "w-3 h-3 transition-transform duration-200": true,
+      "rotate-90": props.expanded,
+      [props.class || ""]: !!props.class,
+    }}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M9 5l7 7-7 7"
+    />
+  </svg>
+);
+
+const TreeElementTransition = (props: { children: any }) => (
+  <Transition
+    enterActiveClass={ANIMATION_CLASSES.ENTER_ACTIVE}
+    enterClass={ANIMATION_CLASSES.ENTER}
+    enterToClass={ANIMATION_CLASSES.ENTER_TO}
+    exitActiveClass={ANIMATION_CLASSES.EXIT_ACTIVE}
+    exitClass={ANIMATION_CLASSES.EXIT}
+    exitToClass={ANIMATION_CLASSES.EXIT_TO}
+  >
+    {props.children}
+  </Transition>
+);
+
+export const TreeItem = (props: TreeItemProps) => {
+  const ctx = useTreeContext();
+
+  const expanded = () => ctx.expandedNodes().has(props.node.id);
+  const level = () => props.node.level;
+  const isSelected = () => ctx.selectedNodeId() === props.node.id;
+  const isFocused = () => ctx.focusedNodeId() === props.node.id;
+  const isCut = () => ctx.cutNodeId() === props.node.id;
+
+  const [childrenResource] = createResource(
+    () => (expanded() && props.node.hasChildren ? props.node.id : null),
+    async (nodeId) => {
+      const children = await (ctx.loadChildren?.(nodeId) || Promise.resolve([]));
+      if (children.length > 0) {
+        ctx.onChildrenLoaded(nodeId, children);
+      }
+      return children;
+    },
+  );
+
+  const handleToggle = () => {
+    ctx.onExpand(props.node.id);
+  };
+
+  const handleClick = () => {
+    ctx.onFocus(props.node);
+    ctx.onSelect(props.node);
+  };
+
+  const handleContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+    ctx.onContextMenu?.(props.node, e);
+  };
+
+  const handleExpandClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    handleToggle();
+  };
+
+  return (
+    <li>
+      <a
+        classList={{
+          "items-center gap-2 flex": true,
+          active: isSelected(),
+          "bg-primary/50": isFocused(),
+          "opacity-50 bg-warning/20": isCut(),
+        }}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+        data-node-id={props.node.id}
+        role="treeitem"
+        aria-expanded={expanded()}
+        aria-level={level() + 1}
+        aria-selected={isSelected()}
+      >
+        <Show
+          when={props.node.hasChildren}
+          fallback={<div class="w-4 h-4 opacity-0" />}
+        >
+          <button
+            class="btn btn-ghost btn-xs btn-square"
+            onClick={handleExpandClick}
+            tabIndex={-1}
+            aria-label={expanded() ? "Collapse" : "Expand"}
+          >
+            <ExpandCollapseIcon expanded={expanded()} />
+          </button>
+        </Show>
+        <span class="flex-1">{props.node.label}</span>
+      </a>
+
+      <TreeElementTransition>
+        <Show when={expanded() && props.node.hasChildren}>
+          <ul>
+            <Suspense
+              fallback={
+                <li class="px-4 py-2">
+                  <div class="flex items-center gap-2 text-sm opacity-60">
+                    <span class="loading loading-spinner loading-xs" />
+                    <span>Loading...</span>
+                  </div>
+                </li>
+              }
+            >
+              <For each={childrenResource()}>
+                {(child) => (
+                  <TreeItem node={{ ...child, level: level() + 1 }} />
+                )}
+              </For>
+            </Suspense>
+          </ul>
+        </Show>
+      </TreeElementTransition>
+    </li>
+  );
+};

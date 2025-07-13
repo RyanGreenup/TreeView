@@ -188,6 +188,7 @@ export default function TreeExample() {
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
   const [expandedItems, setExpandedItems] = createSignal<string[]>([]);
 
+  // TODO should this be a type?
   let treeViewRef:
     | {
         expandAll: () => void;

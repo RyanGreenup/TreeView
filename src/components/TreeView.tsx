@@ -173,13 +173,24 @@ export const TreeView = (props: TreeViewProps) => {
         setEditingNodeId(undefined);
         if (REFRESH_TREE_AFTER_RENAME) {
           refreshTree();
-        } 
+        } else {
+          // Update the node label in place without full refresh
+          updateNodeLabelInPlace(nodeId, newLabel);
+        }
       }
     }
   };
 
   const handleRenameCancel = () => {
     setEditingNodeId(undefined);
+  };
+
+  const updateNodeLabelInPlace = (nodeId: string, newLabel: string) => {
+    // Find the DOM element and update its text directly
+    const nodeElement = treeRef?.querySelector(`a[data-node-id="${nodeId}"] span`);
+    if (nodeElement) {
+      nodeElement.textContent = newLabel;
+    }
   };
 
   const refreshTree = () => {

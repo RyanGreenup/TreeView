@@ -4,7 +4,7 @@ export const VIRTUAL_ROOT_ID = "__virtual_root__";
 // Set to false to disable full tree refresh during development/testing
 // Don't strictly need it, unless the user puts stupid things in the tree
 // item.
-export const REFRESH_TREE_AFTER_RENAME = true;
+export const REFRESH_TREE_AFTER_RENAME = false;
 
 export const TREE_KEYBOARD_SHORTCUTS = {
   EXPAND_COLLAPSE: ["ArrowLeft", "ArrowRight"],

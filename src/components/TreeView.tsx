@@ -231,6 +231,35 @@ export const TreeView = (props: TreeViewProps) => {
     }
   };
 
+  const handleDelete = (nodeId?: string) => {
+    const targetNodeId = nodeId || focusedNode()?.id;
+    
+    if (targetNodeId && others.onDelete) {
+      const success = others.onDelete(targetNodeId);
+      if (success) {
+        // Get the parent ID for refresh
+        const getParentIdFn = getParentIdMemo();
+        const parentId = getParentIdFn(targetNodeId) || VIRTUAL_ROOT_ID;
+        
+        // Clear focus/selection if they were on the deleted node
+        if (focusedNode()?.id === targetNodeId) {
+          setFocusedNode(null);
+        }
+        if (selectedNode()?.id === targetNodeId) {
+          setSelectedNode(null);
+        }
+        
+        // Clear cut if the deleted node was cut
+        if (cutNodeId() === targetNodeId) {
+          setCutNodeId(undefined);
+        }
+        
+        // Refresh the parent to remove the deleted node from view
+        refreshParents([parentId]);
+      }
+    }
+  };
+
   const handleRename = (nodeId?: string) => {
     const targetNodeId = nodeId || focusedNode()?.id;
     if (targetNodeId) {
@@ -531,6 +560,7 @@ export const TreeView = (props: TreeViewProps) => {
     clearCut,
     handleRename,
     handleCreateNew,
+    handleDelete,
   };
 
   const handleKeyDown = createKeyboardHandler(
@@ -555,6 +585,7 @@ export const TreeView = (props: TreeViewProps) => {
     refreshTree,
     rename: handleRename,
     createNew: handleCreateNew,
+    delete: handleDelete,
   };
 
   onMount(() => {

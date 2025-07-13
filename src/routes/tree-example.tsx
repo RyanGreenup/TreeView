@@ -154,6 +154,52 @@ const handleCreateNew = (parent_id: string): string | null => {
   return newId;
 };
 
+/**
+ * Handles deleting an item from the tree by removing it and all its descendants
+ * from the flat data structure.
+ * 
+ * @param node_id - The ID of the node to delete
+ * @returns boolean - Returns true if the operation was successful, false otherwise
+ * 
+ * @example
+ * // Delete "Project A" and all its children
+ * handleDelete("1-1-1");
+ */
+const handleDelete = (node_id: string): boolean => {
+  // Find all descendants of the node to delete
+  const getDescendants = (parentId: string): string[] => {
+    const children = flatTreeData
+      .filter(item => item.parent_id === parentId)
+      .map(item => item.id);
+    
+    const descendants = [...children];
+    
+    // Recursively find all descendants
+    for (const childId of children) {
+      descendants.push(...getDescendants(childId));
+    }
+    
+    return descendants;
+  };
+  
+  // Get all nodes to delete (the target node + all its descendants)
+  const nodesToDelete = [node_id, ...getDescendants(node_id)];
+  
+  // Remove all nodes from the flat data structure
+  const initialLength = flatTreeData.length;
+  
+  for (let i = flatTreeData.length - 1; i >= 0; i--) {
+    if (nodesToDelete.includes(flatTreeData[i].id)) {
+      flatTreeData.splice(i, 1);
+    }
+  }
+  
+  const deletedCount = initialLength - flatTreeData.length;
+  console.log(`Deleted ${deletedCount} nodes starting with ${node_id}`);
+  
+  return deletedCount > 0;
+};
+
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
   // Simulate network delay
@@ -204,6 +250,7 @@ export default function TreeExample() {
         refreshTree: () => void;
         rename: (nodeId?: string) => void;
         createNew: (parentId?: string) => void;
+        delete: (nodeId?: string) => void;
       }
     | undefined;
 
@@ -231,8 +278,8 @@ export default function TreeExample() {
     
     // Simple context menu - you could enhance this with a proper dropdown
     const action = prompt(
-      `Choose action for "${node.label}":\n1. Cut\n2. Paste\n3. Move to Root\n4. Rename\n5. Create New Child\n6. Cancel`,
-      "6",
+      `Choose action for "${node.label}":\n1. Cut\n2. Paste\n3. Move to Root\n4. Rename\n5. Create New Child\n6. Delete\n7. Cancel`,
+      "7",
     );
     
     switch (action) {
@@ -256,6 +303,12 @@ export default function TreeExample() {
       case "5":
         treeViewRef?.createNew(node.id);
         console.log("Create new child under:", node.id);
+        break;
+      case "6":
+        if (confirm(`Are you sure you want to delete "${node.label}" and all its children?`)) {
+          treeViewRef?.delete(node.id);
+          console.log("Delete node:", node.id);
+        }
         break;
       default:
         console.log("Context menu cancelled");
@@ -367,6 +420,17 @@ export default function TreeExample() {
                     Create New Item
                   </button>
                   <button
+                    class="btn btn-outline btn-sm btn-error"
+                    onClick={() => {
+                      const focused = focusedItem();
+                      if (focused && confirm(`Are you sure you want to delete "${focused.label}" and all its children?`)) {
+                        treeViewRef?.delete();
+                      }
+                    }}
+                  >
+                    Delete Focused
+                  </button>
+                  <button
                     class="btn btn-outline btn-sm btn-accent"
                     onClick={() => treeViewRef?.refreshTree()}
                   >
@@ -381,6 +445,7 @@ export default function TreeExample() {
                 onCutPaste={handleCutPaste}
                 onRename={handleRename}
                 onCreate={handleCreateNew}
+                onDelete={handleDelete}
                 onContextMenu={handleContextMenu}
                 loadChildren={loadChildren}
                 ref={(ref) => (treeViewRef = ref)}
@@ -494,6 +559,10 @@ export default function TreeExample() {
                 <div class="flex items-center justify-between">
                   <span class="text-sm">Create New</span>
                   <kbd class="kbd kbd-xs">Insert</kbd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm">Delete</span>
+                  <kbd class="kbd kbd-xs">Delete</kbd>
                 </div>
               </div>
             </div>

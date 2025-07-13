@@ -16,6 +16,7 @@ export type TreeChildrenLoadedHandler = (nodeId: string, children: TreeNode[]) =
 export type TreeCutPasteHandler = (sourceId: string, targetId: string) => boolean;
 export type TreeRenameHandler = (nodeId: string, newLabel: string) => boolean;
 export type TreeCreateHandler = (parentId: string) => string | null;
+export type TreeDeleteHandler = (nodeId: string) => boolean;
 export type TreeContextMenuHandler = (node: TreeNode, event: MouseEvent) => void;
 
 export interface TreeContextValue {
@@ -47,6 +48,7 @@ export interface TreeViewProps {
   onCutPaste?: TreeCutPasteHandler;
   onRename?: TreeRenameHandler;
   onCreate?: TreeCreateHandler;
+  onDelete?: TreeDeleteHandler;
   onContextMenu?: TreeContextMenuHandler;
   class?: string;
   ref?: (ref: TreeViewRef) => void;
@@ -66,6 +68,7 @@ export interface TreeViewRef {
   refreshTree: () => void;
   rename: (nodeId?: string) => void;
   createNew: (parentId?: string) => void;
+  delete: (nodeId?: string) => void;
 }
 
 export interface TreeItemProps {

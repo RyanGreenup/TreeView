@@ -21,7 +21,6 @@ type TreeExpandHandler = (nodeId: string) => void;
 type TreeChildrenLoader = (nodeId: string) => Promise<TreeNode[]>;
 type TreeChildrenLoadedHandler = (nodeId: string, children: TreeNode[]) => void;
 type TreeCutPasteHandler = (sourceId: string, targetId: string) => void;
-type TreeMoveToRootHandler = (sourceId: string) => void;
 
 interface TreeContextValue {
   expandedNodes: Accessor<Set<string>>;
@@ -35,7 +34,6 @@ interface TreeContextValue {
   onChildrenLoaded: TreeChildrenLoadedHandler;
   onCut: (nodeId: string) => void;
   onPaste: (targetId: string) => void;
-  onMoveToRoot: () => void;
   loadChildren?: TreeChildrenLoader;
 }
 
@@ -58,13 +56,11 @@ export interface TreeNode {
 }
 
 export interface TreeViewProps {
-  rootData: () => Promise<TreeNode[]>;
+  loadChildren: TreeChildrenLoader;
   onSelect?: TreeSelectHandler;
   onFocus?: TreeFocusHandler;
   onExpand?: TreeExpandHandler;
   onCutPaste?: TreeCutPasteHandler;
-  onMoveToRoot?: TreeMoveToRootHandler;
-  loadChildren?: TreeChildrenLoader;
   class?: string;
   ref?: (ref: {
     expandAll: () => void;
@@ -76,7 +72,6 @@ export interface TreeViewProps {
     focusAndReveal: (nodeId: string) => Promise<void>;
     cut: (nodeId: string) => void;
     paste: (targetId: string) => void;
-    moveToRoot: () => void;
     clearCut: () => void;
   }) => void;
 }
@@ -137,16 +132,13 @@ const TreeItem = (props: TreeItemProps) => {
         onContextMenu={(e) => {
           e.preventDefault();
           // Simple context menu - you could enhance this with a proper dropdown
-          const action = prompt("Choose action:\n1. Cut\n2. Paste\n3. Move to Root\n4. Cancel", "4");
+          const action = prompt("Choose action:\n1. Cut\n2. Paste\n3. Cancel", "3");
           switch(action) {
             case "1":
               ctx.onCut(props.node.id);
               break;
             case "2":
               ctx.onPaste(props.node.id);
-              break;
-            case "3":
-              ctx.onMoveToRoot();
               break;
           }
         }}
@@ -246,32 +238,48 @@ const scrollIntoViewIfNeeded = (
   }
 };
 
+// Virtual root node ID - represents the invisible root container
+const VIRTUAL_ROOT_ID = "__virtual_root__";
+
 export const TreeView = (props: TreeViewProps) => {
   const [selectedNode, setSelectedNode] = createSignal<TreeNode | null>(null);
   const [focusedNode, setFocusedNode] = createSignal<TreeNode | null>(null);
   const [expandedNodes, setExpandedNodes] = createSignal<Set<string>>(
-    new Set(),
+    new Set([VIRTUAL_ROOT_ID]), // Virtual root is always expanded
   );
   const [loadedChildren, setLoadedChildren] = createSignal<
     Map<string, TreeNode[]>
   >(new Map());
   const [foldCycleState, setFoldCycleState] = createSignal<0 | 1 | 2>(0);
   const [cutNodeId, setCutNodeId] = createSignal<string | undefined>(undefined);
-  const [refreshTrigger, setRefreshTrigger] = createSignal(0);
   const [pendingExpansions, setPendingExpansions] = createSignal<Map<string, boolean>>(new Map());
   let treeRef: HTMLUListElement | undefined;
   let containerRef: HTMLDivElement | undefined;
 
-  // Load root data asynchronously
-  const [rootNodes, { refetch: refetchRootNodes }] = createResource(
-    () => refreshTrigger(), // Track refresh trigger
-    () => props.rootData()
+  // Load root children from virtual root
+  const [rootChildren] = createResource(
+    async () => {
+      const children = await props.loadChildren(VIRTUAL_ROOT_ID);
+      return children;
+    }
   );
+
+  // Store root children in loadedChildren when they load
+  createEffect(() => {
+    const children = rootChildren();
+    if (children) {
+      setLoadedChildren(prev => {
+        const newMap = new Map(prev);
+        newMap.set(VIRTUAL_ROOT_ID, children);
+        return newMap;
+      });
+    }
+  });
 
   // Memoize expensive tree flattening computation
   const flattenedNodes = createMemo(() => {
-    const nodes = rootNodes();
-    return nodes ? flattenTree(nodes, undefined, expandedNodes, loadedChildren) : [];
+    const children = loadedChildren().get(VIRTUAL_ROOT_ID);
+    return children ? flattenTree(children, 0, expandedNodes, loadedChildren) : [];
   });
 
   // Memoize accessor functions to prevent creating new functions on every render
@@ -349,10 +357,11 @@ export const TreeView = (props: TreeViewProps) => {
 
   const handleMoveToRoot = () => {
     const cutId = cutNodeId();
-    if (cutId && props.onMoveToRoot) {
-      props.onMoveToRoot(cutId);
+    if (cutId && props.onCutPaste) {
+      // Moving to root is just pasting to the virtual root
+      props.onCutPaste(cutId, VIRTUAL_ROOT_ID);
       // Refresh data by collapsing and re-expanding parent nodes
-      refreshAfterMoveToRoot(cutId);
+      refreshAfterMove(cutId, VIRTUAL_ROOT_ID);
       setCutNodeId(undefined);
     }
   };
@@ -361,34 +370,22 @@ export const TreeView = (props: TreeViewProps) => {
     setCutNodeId(undefined);
   };
 
-  const getParentId = (nodeId: string, nodes: TreeNode[]): string | null => {
-    for (const node of nodes) {
-      const loadedChildrenForNode = loadedChildren().get(node.id);
-      if (loadedChildrenForNode && loadedChildrenForNode.some(child => child.id === nodeId)) {
-        return node.id;
-      }
-      
-      if (loadedChildrenForNode) {
-        const parentId = getParentId(nodeId, loadedChildrenForNode);
-        if (parentId) return parentId;
-      }
-    }
+  const getParentId = (nodeId: string): string | null => {
+    const loaded = loadedChildren();
     
-    // Check if it's a direct child of root
-    const rootNodesList = rootNodes();
-    if (rootNodesList && rootNodesList.some(node => node.id === nodeId)) {
-      return null; // Root level
+    // Check all loaded children maps to find the parent
+    for (const [parentId, children] of loaded.entries()) {
+      if (children.some(child => child.id === nodeId)) {
+        return parentId;
+      }
     }
     
     return null;
   };
 
   const refreshAfterMove = (sourceId: string, targetId: string) => {
-    const nodes = rootNodes();
-    if (!nodes) return;
-
     // Get parent IDs
-    const sourceParentId = getParentId(sourceId, nodes);
+    const sourceParentId = getParentId(sourceId);
     const targetParentId = targetId;
 
     // Store expansion states
@@ -398,8 +395,8 @@ export const TreeView = (props: TreeViewProps) => {
     // Collapse both parents to force data refresh
     setExpandedNodes(prev => {
       const newSet = new Set(prev);
-      if (sourceParentId) newSet.delete(sourceParentId);
-      newSet.delete(targetParentId);
+      if (sourceParentId && sourceParentId !== VIRTUAL_ROOT_ID) newSet.delete(sourceParentId);
+      if (targetParentId !== VIRTUAL_ROOT_ID) newSet.delete(targetParentId);
       return newSet;
     });
 
@@ -407,65 +404,43 @@ export const TreeView = (props: TreeViewProps) => {
     setLoadedChildren(prev => {
       const newMap = new Map(prev);
       if (sourceParentId) newMap.delete(sourceParentId);
-      newMap.delete(targetParentId);
+      if (targetParentId !== VIRTUAL_ROOT_ID) newMap.delete(targetParentId);
       return newMap;
     });
 
     // Schedule re-expansion using reactive pending expansions
     const newPending = new Map<string, boolean>();
-    if (sourceParentWasExpanded && sourceParentId) {
+    if (sourceParentWasExpanded && sourceParentId && sourceParentId !== VIRTUAL_ROOT_ID) {
       newPending.set(sourceParentId, true);
     }
-    if (targetParentWasExpanded) {
+    if (targetParentWasExpanded && targetParentId !== VIRTUAL_ROOT_ID) {
       newPending.set(targetParentId, true);
     }
     if (newPending.size > 0) {
       setPendingExpansions(newPending);
     }
-  };
 
-  const refreshAfterMoveToRoot = (sourceId: string) => {
-    const nodes = rootNodes();
-    if (!nodes) return;
-
-    // Get parent ID
-    const sourceParentId = getParentId(sourceId, nodes);
-
-    // Store expansion state
-    const sourceParentWasExpanded = sourceParentId ? expandedNodes().has(sourceParentId) : false;
-
-    // Collapse source parent to force data refresh
-    if (sourceParentId) {
-      setExpandedNodes(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(sourceParentId);
-        return newSet;
-      });
-
-      // Clear loaded children for source parent
+    // If moving to/from virtual root, refresh root children
+    if (sourceParentId === VIRTUAL_ROOT_ID || targetParentId === VIRTUAL_ROOT_ID) {
+      // Trigger refresh of virtual root children
       setLoadedChildren(prev => {
         const newMap = new Map(prev);
-        newMap.delete(sourceParentId);
+        newMap.delete(VIRTUAL_ROOT_ID);
         return newMap;
       });
-
-      // Schedule re-expansion using reactive pending expansions
-      if (sourceParentWasExpanded) {
-        const newPending = new Map<string, boolean>();
-        newPending.set(sourceParentId, true);
-        setPendingExpansions(newPending);
-      }
+      // Re-load virtual root children
+      props.loadChildren(VIRTUAL_ROOT_ID).then(children => {
+        setLoadedChildren(prev => {
+          const newMap = new Map(prev);
+          newMap.set(VIRTUAL_ROOT_ID, children);
+          return newMap;
+        });
+      });
     }
-
-    // Refresh root data by triggering the refresh signal
-    setRefreshTrigger(prev => prev + 1);
   };
 
-  const expandAll = async () => {
-    if (!props.loadChildren) {
-      return;
-    }
 
+  const expandAll = async () => {
     const expandLevel = async (nodes: TreeNode[]) => {
       const nodesToExpand = nodes.filter(node => node.hasChildren);
       
@@ -483,7 +458,7 @@ export const TreeView = (props: TreeViewProps) => {
       // Then load children for each node at this level
       const childrenLoadPromises = nodesToExpand.map(async (node) => {
         try {
-          const children = await props.loadChildren!(node.id);
+          const children = await props.loadChildren(node.id);
           if (children && children.length > 0) {
             // Update loaded children immediately when they arrive
             setLoadedChildren((prev) => {
@@ -511,39 +486,42 @@ export const TreeView = (props: TreeViewProps) => {
       }
     };
 
-    const nodes = rootNodes();
-    if (nodes) {
-      await expandLevel(nodes);
+    const rootNodes = loadedChildren().get(VIRTUAL_ROOT_ID);
+    if (rootNodes) {
+      await expandLevel(rootNodes);
     }
   };
 
   const collapseAll = () => {
-    setExpandedNodes(new Set<string>());
+    setExpandedNodes(new Set([VIRTUAL_ROOT_ID])); // Keep virtual root expanded
   };
 
-  const getPathToNode = (
-    nodeId: string,
-    nodes: TreeNode[],
-    path: string[] = [],
-  ): string[] | null => {
-    for (const node of nodes) {
-      const currentPath = [...path, node.id];
-
-      if (node.id === nodeId) {
-        return currentPath;
+  const getPathToNode = (nodeId: string): string[] | null => {
+    const loaded = loadedChildren();
+    
+    const findPath = (targetId: string, currentPath: string[] = []): string[] | null => {
+      // Check each parent's children
+      for (const [parentId, children] of loaded.entries()) {
+        for (const child of children) {
+          const pathToChild = [...currentPath, parentId, child.id];
+          
+          if (child.id === targetId) {
+            // Filter out virtual root from the path
+            return pathToChild.filter(id => id !== VIRTUAL_ROOT_ID);
+          }
+          
+          // Recursively search in child's children if they exist
+          const childrenOfChild = loaded.get(child.id);
+          if (childrenOfChild) {
+            const foundPath = findPath(targetId, pathToChild.slice(0, -1));
+            if (foundPath) return foundPath;
+          }
+        }
       }
-
-      const loadedChildrenForNode = loadedChildren().get(node.id);
-      if (loadedChildrenForNode) {
-        const foundPath = getPathToNode(
-          nodeId,
-          loadedChildrenForNode,
-          currentPath,
-        );
-        if (foundPath) return foundPath;
-      }
-    }
-    return null;
+      return null;
+    };
+    
+    return findPath(nodeId);
   };
 
   const collapseAllExceptNode = (node: TreeNode | null) => {
@@ -552,11 +530,9 @@ export const TreeView = (props: TreeViewProps) => {
       return;
     }
 
-    const nodes = rootNodes();
-    if (!nodes) return;
-    const pathToNode = getPathToNode(node.id, nodes);
+    const pathToNode = getPathToNode(node.id);
     if (pathToNode) {
-      setExpandedNodes(new Set(pathToNode.slice(0, -1)));
+      setExpandedNodes(new Set([VIRTUAL_ROOT_ID, ...pathToNode.slice(0, -1)]));
     } else {
       collapseAll();
     }
@@ -573,26 +549,23 @@ export const TreeView = (props: TreeViewProps) => {
   const collapseSome = () => {
     const focused = focusedNode();
     const selected = selectedNode();
-    const nodes = rootNodes();
 
     if (!focused && !selected) {
       collapseAll();
       return;
     }
 
-    if (!nodes) return;
-
-    const pathsToKeep = new Set<string>();
+    const pathsToKeep = new Set<string>([VIRTUAL_ROOT_ID]);
 
     if (focused) {
-      const pathToFocused = getPathToNode(focused.id, nodes);
+      const pathToFocused = getPathToNode(focused.id);
       if (pathToFocused) {
         pathToFocused.slice(0, -1).forEach((id) => pathsToKeep.add(id));
       }
     }
 
     if (selected && selected.id !== focused?.id) {
-      const pathToSelected = getPathToNode(selected.id, nodes);
+      const pathToSelected = getPathToNode(selected.id);
       if (pathToSelected) {
         pathToSelected.slice(0, -1).forEach((id) => pathsToKeep.add(id));
       }
@@ -618,10 +591,10 @@ export const TreeView = (props: TreeViewProps) => {
           return ids;
         };
 
-        const nodes = rootNodes();
-        if (!nodes) return;
-        const topLevelParentIds = getTopLevelParentIds(nodes);
-        setExpandedNodes(new Set(topLevelParentIds));
+        const rootNodes = loadedChildren().get(VIRTUAL_ROOT_ID);
+        if (!rootNodes) return;
+        const topLevelParentIds = getTopLevelParentIds(rootNodes);
+        setExpandedNodes(new Set([VIRTUAL_ROOT_ID, ...topLevelParentIds]));
         setFoldCycleState(1);
         break;
 
@@ -638,28 +611,20 @@ export const TreeView = (props: TreeViewProps) => {
   };
 
   const focusAndReveal = async (nodeId: string) => {
-    const findNodeInTree = (
-      targetId: string,
-      nodes: TreeNode[],
-    ): TreeNode | null => {
-      for (const node of nodes) {
-        if (node.id === targetId) {
-          return node;
-        }
-
-        const loadedChildrenForNode = loadedChildren().get(node.id);
-        if (loadedChildrenForNode) {
-          const found = findNodeInTree(targetId, loadedChildrenForNode);
-          if (found) return found;
+    const findNodeInLoadedChildren = (targetId: string): TreeNode | null => {
+      const loaded = loadedChildren();
+      for (const [, children] of loaded.entries()) {
+        for (const child of children) {
+          if (child.id === targetId) {
+            return child;
+          }
         }
       }
       return null;
     };
 
-    // First try to find the node in the current tree
-    const nodes = rootNodes();
-    if (!nodes) return;
-    let targetNode = findNodeInTree(nodeId, nodes);
+    // First try to find the node in already loaded children
+    let targetNode = findNodeInLoadedChildren(nodeId);
 
     // If not found, we need to progressively expand and load children
     if (!targetNode) {
@@ -681,30 +646,28 @@ export const TreeView = (props: TreeViewProps) => {
               setExpandedNodes((prev) => new Set([...prev, node.id]));
 
               // Load dynamic children
-              if (props.loadChildren) {
-                try {
-                  const dynamicChildren = await props.loadChildren(node.id);
-                  if (dynamicChildren && dynamicChildren.length > 0) {
-                    // Update loaded children
-                    setLoadedChildren((prev) => {
-                      const newMap = new Map(prev);
-                      newMap.set(node.id, dynamicChildren);
-                      return newMap;
-                    });
+              try {
+                const dynamicChildren = await props.loadChildren(node.id);
+                if (dynamicChildren && dynamicChildren.length > 0) {
+                  // Update loaded children
+                  setLoadedChildren((prev) => {
+                    const newMap = new Map(prev);
+                    newMap.set(node.id, dynamicChildren);
+                    return newMap;
+                  });
 
-                    // Search in the newly loaded children
-                    const found = await expandAndSearch(
-                      dynamicChildren,
-                      targetId,
-                    );
-                    if (found) return found;
-                  }
-                } catch (error) {
-                  console.warn(
-                    `Failed to load children for node ${node.id}:`,
-                    error,
+                  // Search in the newly loaded children
+                  const found = await expandAndSearch(
+                    dynamicChildren,
+                    targetId,
                   );
+                  if (found) return found;
                 }
+              } catch (error) {
+                console.warn(
+                  `Failed to load children for node ${node.id}:`,
+                  error,
+                );
               }
             }
           }
@@ -712,7 +675,10 @@ export const TreeView = (props: TreeViewProps) => {
         return null;
       };
 
-      targetNode = await expandAndSearch(nodes, nodeId);
+      const rootNodes = loadedChildren().get(VIRTUAL_ROOT_ID);
+      if (rootNodes) {
+        targetNode = await expandAndSearch(rootNodes, nodeId);
+      }
     }
 
     if (!targetNode) {
@@ -721,12 +687,13 @@ export const TreeView = (props: TreeViewProps) => {
     }
 
     // Get path to the target node and ensure all parents are expanded
-    const pathToTarget = getPathToNode(nodeId, nodes);
+    const pathToTarget = getPathToNode(nodeId);
     if (pathToTarget) {
       // Expand all parent nodes (exclude the target node itself)
       const parentsToExpand = pathToTarget.slice(0, -1);
       setExpandedNodes((prev) => {
         const newSet = new Set(prev);
+        newSet.add(VIRTUAL_ROOT_ID); // Ensure virtual root is expanded
         parentsToExpand.forEach((id) => newSet.add(id));
         return newSet;
       });
@@ -858,16 +825,15 @@ export const TreeView = (props: TreeViewProps) => {
       focusAndReveal,
       cut: handleCut,
       paste: handlePaste,
-      moveToRoot: handleMoveToRoot,
       clearCut,
     });
   });
 
-  // Set focus on first node when root data loads
+  // Set focus on first node when root children load
   createEffect(() => {
-    const nodes = rootNodes();
-    if (nodes && nodes.length > 0 && !focusedNode()) {
-      setFocusedNode(nodes[0]);
+    const rootNodes = loadedChildren().get(VIRTUAL_ROOT_ID);
+    if (rootNodes && rootNodes.length > 0 && !focusedNode()) {
+      setFocusedNode(rootNodes[0]);
     }
   });
 
@@ -906,7 +872,6 @@ export const TreeView = (props: TreeViewProps) => {
     onChildrenLoaded: handleChildrenLoaded,
     onCut: handleCut,
     onPaste: handlePaste,
-    onMoveToRoot: handleMoveToRoot,
     loadChildren: props.loadChildren,
   };
 
@@ -924,7 +889,8 @@ export const TreeView = (props: TreeViewProps) => {
           tabIndex={0}
           onKeyDown={handleKeyDown}
         >
-          <Suspense
+          <Show
+            when={!rootChildren.loading}
             fallback={
               <li class="px-4 py-2">
                 <div class="flex items-center gap-2 text-sm opacity-60">
@@ -934,10 +900,10 @@ export const TreeView = (props: TreeViewProps) => {
               </li>
             }
           >
-            <For each={rootNodes()}>
+            <For each={loadedChildren().get(VIRTUAL_ROOT_ID) || []}>
               {(node) => <TreeItem node={{ ...node, level: 0 }} />}
             </For>
-          </Suspense>
+          </Show>
         </ul>
       </div>
     </TreeContext.Provider>

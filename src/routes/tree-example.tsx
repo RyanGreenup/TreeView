@@ -64,39 +64,27 @@ const handleCutPaste = (source_id: string, target_id: string) => {
 
   if (sourceItem) {
     // Update the parent_id to move the item to the new target
-    sourceItem.parent_id = target_id;
+    // If target is virtual root, set parent_id to null
+    sourceItem.parent_id = target_id === "__virtual_root__" ? null : target_id;
   }
-};
-
-const handleMoveToRoot = (source_id: string) => {
-  // Find the source item in the flat data structure
-  const sourceItem = flatTreeData.find((item) => item.id === source_id);
-
-  if (sourceItem) {
-    // Update the parent_id to null to move the item to the root
-    sourceItem.parent_id = null;
-  }
-};
-
-// Mock function to simulate loading root data from a remote source
-const loadRootData = async (): Promise<TreeNode[]> => {
-  // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  return flatTreeData
-    .filter((item) => item.parent_id === null)
-    .map((item) => ({
-      id: item.id,
-      label: item.label,
-      hasChildren: flatTreeData.some((child) => child.parent_id === item.id),
-      level: 0,
-    }));
 };
 
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
   // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 300));
+
+  // Handle virtual root - return top-level items
+  if (nodeId === "__virtual_root__") {
+    return flatTreeData
+      .filter((item) => item.parent_id === null)
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        hasChildren: flatTreeData.some((child) => child.parent_id === item.id),
+        level: 0,
+      }));
+  }
 
   // Find children from flat data structure
   const children = flatTreeData
@@ -126,7 +114,6 @@ export default function TreeExample() {
         focusAndReveal: (nodeId: string) => Promise<void>;
         cut: (nodeId: string) => void;
         paste: (targetId: string) => void;
-        moveToRoot: () => void;
         clearCut: () => void;
       }
     | undefined;
@@ -232,7 +219,7 @@ export default function TreeExample() {
                   </button>
                   <button
                     class="btn btn-outline btn-sm"
-                    onClick={() => treeViewRef?.moveToRoot()}
+                    onClick={() => treeViewRef?.paste("__virtual_root__")}
                   >
                     Move Cut to Root
                   </button>
@@ -245,12 +232,10 @@ export default function TreeExample() {
                 </div>
               </div>
               <TreeView
-                rootData={loadRootData}
                 onSelect={handleSelect}
                 onFocus={handleFocus}
                 onExpand={handleExpand}
                 onCutPaste={handleCutPaste}
-                onMoveToRoot={handleMoveToRoot}
                 loadChildren={loadChildren}
                 ref={(ref) => (treeViewRef = ref)}
               />

@@ -176,7 +176,7 @@ const handleCutPaste = (source_id: string, target_id: string) => {
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
   // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 300));
 
   // Return mock children from hashmap
   return childrenMap.get(nodeId) || [];

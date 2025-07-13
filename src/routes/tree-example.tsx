@@ -2,44 +2,43 @@ import { createSignal } from "solid-js";
 import { StatusDisplay } from "~/components/StatusDisplay";
 import { TreeNode, TreeView } from "~/components/TreeView";
 
-// Mock data for the tree
+// Mock data for the tree - only root nodes
 const mockTreeData: TreeNode[] = [
   {
     id: "1",
     label: "Documents",
     hasChildren: true,
-    children: [
-      {
-        id: "1-1",
-        label: "Work",
-        hasChildren: true,
-      },
-      {
-        id: "1-2",
-        label: "Personal",
-        hasChildren: true,
-      },
-    ],
+    level: 0,
   },
   {
     id: "2",
     label: "Pictures",
     hasChildren: true,
+    level: 0,
   },
   {
     id: "3",
     label: "Videos",
     hasChildren: true,
+    level: 0,
   },
   {
     id: "4",
     label: "Music",
     hasChildren: false,
+    level: 0,
   },
 ];
 
 // Mutable hashmap to store children data
 const childrenMap = new Map<string, TreeNode[]>([
+  [
+    "1",
+    [
+      { id: "1-1", label: "Work", hasChildren: true, level: 0 },
+      { id: "1-2", label: "Personal", hasChildren: true, level: 0 },
+    ],
+  ],
   [
     "1-1",
     [
@@ -115,63 +114,6 @@ const childrenMap = new Map<string, TreeNode[]>([
   ],
 ]);
 
-const handleCutPaste = (source_id: string, target_id: string) => {
-  // Find the source node in the childrenMap
-  let sourceNode: TreeNode | null = null;
-  let sourceParentId: string | null = null;
-
-  // Search through all entries in childrenMap to find the source node
-  for (const [parentId, children] of childrenMap.entries()) {
-    const foundNode = children.find((child) => child.id === source_id);
-    if (foundNode) {
-      sourceNode = foundNode;
-      sourceParentId = parentId;
-      break;
-    }
-  }
-
-  // If source node not found, return early
-  if (!sourceNode || !sourceParentId) {
-    console.warn(`Source node with id ${source_id} not found`);
-    return;
-  }
-
-  // Remove source node from its current parent
-  const sourceParentChildren = childrenMap.get(sourceParentId);
-  if (sourceParentChildren) {
-    const updatedSourceParentChildren = sourceParentChildren.filter(
-      (child) => child.id !== source_id,
-    );
-    childrenMap.set(sourceParentId, updatedSourceParentChildren);
-  }
-
-  // Add source node to target parent
-  const targetChildren = childrenMap.get(target_id) || [];
-  targetChildren.push(sourceNode);
-  childrenMap.set(target_id, targetChildren);
-
-  // Update the target node's hasChildren property if it exists in the tree
-  const updateNodeHasChildren = (nodes: TreeNode[]): TreeNode[] => {
-    return nodes.map((node) => {
-      if (node.id === target_id) {
-        return { ...node, hasChildren: true };
-      }
-      if (node.children) {
-        return { ...node, children: updateNodeHasChildren(node.children) };
-      }
-      return node;
-    });
-  };
-
-  // Update the main tree data structure if the target is a root node
-  mockTreeData.forEach((node, index) => {
-    if (node.id === target_id) {
-      mockTreeData[index] = { ...node, hasChildren: true };
-    }
-  });
-
-  console.log(`Moved node ${source_id} from ${sourceParentId} to ${target_id}`);
-};
 
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {

@@ -46,7 +46,6 @@ const useTreeContext = () => {
 export interface TreeNode {
   id: string;
   label: string;
-  children?: TreeNode[];
   hasChildren?: boolean;
   isExpanded?: boolean;
   level: number;
@@ -80,10 +79,9 @@ const TreeItem = (props: TreeItemProps) => {
   // Use the expanded state from context
   const expanded = () => ctx.expandedNodes().has(props.node.id);
 
-  // Only load children if we don't have static children
   const [childrenResource] = createResource(
     () =>
-      expanded() && props.node.hasChildren && !props.node.children
+      expanded() && props.node.hasChildren
         ? props.node.id
         : null,
     async (nodeId) => {
@@ -150,31 +148,22 @@ const TreeItem = (props: TreeItemProps) => {
       <TreeElementTransition>
         <Show when={expanded() && props.node.hasChildren}>
           <ul>
-            <Show
-              when={props.node.children && props.node.children.length > 0}
+            <Suspense
               fallback={
-                <Suspense
-                  fallback={
-                    <li class="px-4 py-2">
-                      <div class="flex items-center gap-2 text-sm opacity-60">
-                        <span class="loading loading-spinner loading-xs"></span>
-                        <span>Loading...</span>
-                      </div>
-                    </li>
-                  }
-                >
-                  <For each={childrenResource()}>
-                    {(child) => (
-                      <TreeItem node={{ ...child, level: level + 1 }} />
-                    )}
-                  </For>
-                </Suspense>
+                <li class="px-4 py-2">
+                  <div class="flex items-center gap-2 text-sm opacity-60">
+                    <span class="loading loading-spinner loading-xs"></span>
+                    <span>Loading...</span>
+                  </div>
+                </li>
               }
             >
-              <For each={props.node.children}>
-                {(child) => <TreeItem node={{ ...child, level: level + 1 }} />}
+              <For each={childrenResource()}>
+                {(child) => (
+                  <TreeItem node={{ ...child, level: level + 1 }} />
+                )}
               </For>
-            </Show>
+            </Suspense>
           </ul>
         </Show>
       </TreeElementTransition>
@@ -304,27 +293,10 @@ export const TreeView = (props: TreeViewProps) => {
     });
   };
 
-  const expandAll = () => {
-    const getAllNodeIds = (nodes: TreeNode[]): string[] => {
-      const ids: string[] = [];
-
-      const traverse = (nodeList: TreeNode[]) => {
-        for (const node of nodeList) {
-          if (node.hasChildren) {
-            ids.push(node.id);
-          }
-          if (node.children) {
-            traverse(node.children);
-          }
-        }
-      };
-
-      traverse(nodes);
-      return ids;
-    };
-
-    const allNodeIds = getAllNodeIds(props.nodes);
-    setExpandedNodes(new Set(allNodeIds));
+  const expandAll = async () => {
+    alert(
+      "This is not implemented. When Implemented it will expand all nodes in the tree",
+    );
   };
 
   const collapseAll = () => {
@@ -341,11 +313,6 @@ export const TreeView = (props: TreeViewProps) => {
 
       if (node.id === nodeId) {
         return currentPath;
-      }
-
-      if (node.children) {
-        const foundPath = getPathToNode(nodeId, node.children, currentPath);
-        if (foundPath) return foundPath;
       }
 
       const loadedChildrenForNode = loadedChildren().get(node.id);
@@ -386,7 +353,7 @@ export const TreeView = (props: TreeViewProps) => {
   const collapseSome = () => {
     const focused = focusedNode();
     const selected = selectedNode();
-    
+
     if (!focused && !selected) {
       collapseAll();
       return;
@@ -397,14 +364,14 @@ export const TreeView = (props: TreeViewProps) => {
     if (focused) {
       const pathToFocused = getPathToNode(focused.id, props.nodes);
       if (pathToFocused) {
-        pathToFocused.slice(0, -1).forEach(id => pathsToKeep.add(id));
+        pathToFocused.slice(0, -1).forEach((id) => pathsToKeep.add(id));
       }
     }
 
     if (selected && selected.id !== focused?.id) {
       const pathToSelected = getPathToNode(selected.id, props.nodes);
       if (pathToSelected) {
-        pathToSelected.slice(0, -1).forEach(id => pathsToKeep.add(id));
+        pathToSelected.slice(0, -1).forEach((id) => pathsToKeep.add(id));
       }
     }
 
@@ -413,37 +380,31 @@ export const TreeView = (props: TreeViewProps) => {
 
   const foldCycle = () => {
     const currentState = foldCycleState();
-    
+
     switch (currentState) {
       case 0: // Currently collapsed, go to "unfold to items with children only"
         const getTopLevelParentIds = (nodes: TreeNode[]): string[] => {
           const ids: string[] = [];
-          
-          const traverse = (nodeList: TreeNode[], level: number = 0) => {
-            for (const node of nodeList) {
-              if (node.hasChildren && level === 0) {
-                ids.push(node.id);
-              }
-              if (node.children) {
-                traverse(node.children, level + 1);
-              }
+
+          for (const node of nodes) {
+            if (node.hasChildren) {
+              ids.push(node.id);
             }
-          };
-          
-          traverse(nodes);
+          }
+
           return ids;
         };
-        
+
         const topLevelParentIds = getTopLevelParentIds(props.nodes);
         setExpandedNodes(new Set(topLevelParentIds));
         setFoldCycleState(1);
         break;
-        
+
       case 1: // Currently showing top-level parents, go to "unfold all"
         expandAll();
         setFoldCycleState(2);
         break;
-        
+
       case 2: // Currently expanded all, go back to collapsed
         collapseAll();
         setFoldCycleState(0);
@@ -452,17 +413,15 @@ export const TreeView = (props: TreeViewProps) => {
   };
 
   const focusAndReveal = async (nodeId: string) => {
-    const findNodeInTree = (targetId: string, nodes: TreeNode[]): TreeNode | null => {
+    const findNodeInTree = (
+      targetId: string,
+      nodes: TreeNode[],
+    ): TreeNode | null => {
       for (const node of nodes) {
         if (node.id === targetId) {
           return node;
         }
-        
-        if (node.children) {
-          const found = findNodeInTree(targetId, node.children);
-          if (found) return found;
-        }
-        
+
         const loadedChildrenForNode = loadedChildren().get(node.id);
         if (loadedChildrenForNode) {
           const found = findNodeInTree(targetId, loadedChildrenForNode);
@@ -474,48 +433,50 @@ export const TreeView = (props: TreeViewProps) => {
 
     // First try to find the node in the current tree
     let targetNode = findNodeInTree(nodeId, props.nodes);
-    
+
     // If not found, we need to progressively expand and load children
     if (!targetNode) {
-      const expandAndSearch = async (currentNodes: TreeNode[], targetId: string): Promise<TreeNode | null> => {
+      const expandAndSearch = async (
+        currentNodes: TreeNode[],
+        targetId: string,
+      ): Promise<TreeNode | null> => {
         for (const node of currentNodes) {
           // Check if target could be a descendant by checking if targetId starts with node.id
           if (targetId.startsWith(node.id + "-") || targetId === node.id) {
-            
             // If this is the target node
             if (node.id === targetId) {
               return node;
             }
-            
-            // If this node has children (static or dynamic), search them
+
+            // If this node has children, search them
             if (node.hasChildren) {
               // Expand this node first
-              setExpandedNodes(prev => new Set([...prev, node.id]));
-              
-              // Check static children first
-              if (node.children) {
-                const found = await expandAndSearch(node.children, targetId);
-                if (found) return found;
-              }
-              
-              // If no static children but has dynamic children, load them
-              if (!node.children && props.loadChildren) {
+              setExpandedNodes((prev) => new Set([...prev, node.id]));
+
+              // Load dynamic children
+              if (props.loadChildren) {
                 try {
                   const dynamicChildren = await props.loadChildren(node.id);
                   if (dynamicChildren && dynamicChildren.length > 0) {
                     // Update loaded children
-                    setLoadedChildren(prev => {
+                    setLoadedChildren((prev) => {
                       const newMap = new Map(prev);
                       newMap.set(node.id, dynamicChildren);
                       return newMap;
                     });
-                    
+
                     // Search in the newly loaded children
-                    const found = await expandAndSearch(dynamicChildren, targetId);
+                    const found = await expandAndSearch(
+                      dynamicChildren,
+                      targetId,
+                    );
                     if (found) return found;
                   }
                 } catch (error) {
-                  console.warn(`Failed to load children for node ${node.id}:`, error);
+                  console.warn(
+                    `Failed to load children for node ${node.id}:`,
+                    error,
+                  );
                 }
               }
             }
@@ -539,10 +500,10 @@ export const TreeView = (props: TreeViewProps) => {
       const parentsToExpand = pathToTarget.slice(0, -1);
       setExpandedNodes((prev) => {
         const newSet = new Set(prev);
-        parentsToExpand.forEach(id => newSet.add(id));
+        parentsToExpand.forEach((id) => newSet.add(id));
         return newSet;
       });
-      
+
       // Set focus to the target node
       handleFocus(targetNode);
     }
@@ -737,16 +698,7 @@ const flattenTree = (
     flattened.push(nodeWithLevel);
 
     if (expanded.has(node.id)) {
-      let childrenToFlatten: TreeNode[] = [];
-
-      // Prioritize static children if available
-      if (node.children && node.children.length > 0) {
-        childrenToFlatten = node.children;
-      }
-      // Otherwise use dynamically loaded children
-      else if (loaded.has(node.id)) {
-        childrenToFlatten = loaded.get(node.id) || [];
-      }
+      const childrenToFlatten = loaded.get(node.id) || [];
 
       if (childrenToFlatten.length > 0) {
         flattened.push(

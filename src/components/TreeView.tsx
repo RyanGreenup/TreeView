@@ -170,17 +170,43 @@ export const TreeView = (props: TreeViewProps) => {
 
   const refreshParents = (parentIds: string[], options: { forceExpand?: boolean } = {}) => {
     const uniqueParentIds = [...new Set(parentIds)].filter(id => id); // Remove duplicates and empty strings
+    const getParentIdFn = getParentIdMemo();
+    
+    // For each parent, check if it's expanded or has children. If not, refresh its parent instead.
+    const finalParentsToRefresh: string[] = [];
+    
+    uniqueParentIds.forEach(parentId => {
+      const wasExpanded = expandedNodes().has(parentId);
+      const hasLoadedChildren = loadedChildren().has(parentId);
+      
+      // If the parent is not expanded and has no loaded children (i.e., it's a leaf node),
+      // we need to refresh its parent instead
+      if (!wasExpanded && !hasLoadedChildren && parentId !== VIRTUAL_ROOT_ID) {
+        const grandparentId = getParentIdFn(parentId);
+        if (grandparentId) {
+          finalParentsToRefresh.push(grandparentId);
+        } else {
+          // If no grandparent, refresh virtual root
+          finalParentsToRefresh.push(VIRTUAL_ROOT_ID);
+        }
+      } else {
+        finalParentsToRefresh.push(parentId);
+      }
+    });
+    
+    // Remove duplicates again after substitution
+    const finalUniqueParents = [...new Set(finalParentsToRefresh)];
     
     // Track which parents were expanded before refresh
     const parentsWereExpanded = new Map<string, boolean>();
-    uniqueParentIds.forEach(parentId => {
+    finalUniqueParents.forEach(parentId => {
       parentsWereExpanded.set(parentId, expandedNodes().has(parentId));
     });
 
     // Clear loaded children for all parents
     setLoadedChildren((prev) => {
       const newMap = new Map(prev);
-      uniqueParentIds.forEach(parentId => {
+      finalUniqueParents.forEach(parentId => {
         if (parentId !== VIRTUAL_ROOT_ID) {
           newMap.delete(parentId);
         }
@@ -191,7 +217,7 @@ export const TreeView = (props: TreeViewProps) => {
     // Collapse all parents first to trigger reload
     setExpandedNodes((prev) => {
       const newSet = new Set(prev);
-      uniqueParentIds.forEach(parentId => {
+      finalUniqueParents.forEach(parentId => {
         if (parentId !== VIRTUAL_ROOT_ID) {
           newSet.delete(parentId);
         }
@@ -201,7 +227,7 @@ export const TreeView = (props: TreeViewProps) => {
 
     // Queue parents for re-expansion
     const pendingMap = new Map<string, boolean>();
-    uniqueParentIds.forEach(parentId => {
+    finalUniqueParents.forEach(parentId => {
       const wasExpanded = parentsWereExpanded.get(parentId);
       const shouldExpand = options.forceExpand || wasExpanded;
       
@@ -215,7 +241,7 @@ export const TreeView = (props: TreeViewProps) => {
     }
 
     // Handle virtual root refresh if needed
-    if (uniqueParentIds.includes(VIRTUAL_ROOT_ID)) {
+    if (finalUniqueParents.includes(VIRTUAL_ROOT_ID)) {
       setLoadedChildren((prev) => {
         const newMap = new Map(prev);
         newMap.delete(VIRTUAL_ROOT_ID);

@@ -45,6 +45,7 @@ export const TreeView = (props: TreeViewProps) => {
   >(new Map());
   const [foldCycleState, setFoldCycleState] = createSignal<FoldCycleState>(0);
   const [cutNodeId, setCutNodeId] = createSignal<string | undefined>(undefined);
+  const [editingNodeId, setEditingNodeId] = createSignal<string | undefined>(undefined);
   const [pendingExpansions, setPendingExpansions] = createSignal<
     Map<string, boolean>
   >(new Map());
@@ -156,6 +157,27 @@ export const TreeView = (props: TreeViewProps) => {
 
   const clearCut = () => {
     setCutNodeId(undefined);
+  };
+
+  const handleRename = (nodeId?: string) => {
+    const targetNodeId = nodeId || focusedNode()?.id;
+    if (targetNodeId) {
+      setEditingNodeId(targetNodeId);
+    }
+  };
+
+  const handleRenameCommit = (nodeId: string, newLabel: string) => {
+    if (others.onRename) {
+      const success = others.onRename(nodeId, newLabel);
+      if (success) {
+        setEditingNodeId(undefined);
+        refreshTree();
+      }
+    }
+  };
+
+  const handleRenameCancel = () => {
+    setEditingNodeId(undefined);
   };
 
   const refreshTree = () => {
@@ -480,6 +502,7 @@ export const TreeView = (props: TreeViewProps) => {
     handlePaste,
     handleMoveToRoot,
     clearCut,
+    handleRename,
   };
 
   const handleKeyDown = createKeyboardHandler(
@@ -502,6 +525,7 @@ export const TreeView = (props: TreeViewProps) => {
     paste: handlePaste,
     clearCut,
     refreshTree,
+    rename: handleRename,
   };
 
   onMount(() => {
@@ -540,6 +564,7 @@ export const TreeView = (props: TreeViewProps) => {
     selectedNodeId,
     loadedChildren,
     cutNodeId,
+    editingNodeId,
     onSelect: handleSelect,
     onFocus: handleFocus,
     onExpand: handleExpand,
@@ -547,6 +572,9 @@ export const TreeView = (props: TreeViewProps) => {
     onCut: handleCut,
     onPaste: handlePaste,
     onMoveToRoot: handleMoveToRoot,
+    onRename: handleRename,
+    onRenameCommit: handleRenameCommit,
+    onRenameCancel: handleRenameCancel,
     onContextMenu: others.onContextMenu,
     loadChildren: others.loadChildren,
   }));

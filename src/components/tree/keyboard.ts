@@ -10,6 +10,7 @@ export interface KeyboardHandlers {
   handlePaste: (targetId: string) => void;
   handleMoveToRoot: () => void;
   clearCut: () => void;
+  handleRename: (nodeId: string) => void;
 }
 
 export const createKeyboardHandler = (
@@ -116,6 +117,11 @@ export const createKeyboardHandler = (
         e.preventDefault();
         handlers.clearCut();
       },
+
+      handleRename: () => {
+        e.preventDefault();
+        handlers.handleRename(currentNode.id);
+      },
     };
 
     switch (e.key) {
@@ -153,6 +159,9 @@ export const createKeyboardHandler = (
       case TREE_KEYBOARD_SHORTCUTS.MOVE_TO_ROOT:
       case TREE_KEYBOARD_SHORTCUTS.MOVE_TO_ROOT.toUpperCase():
         actions.handleMoveToRoot();
+        break;
+      case TREE_KEYBOARD_SHORTCUTS.RENAME:
+        actions.handleRename();
         break;
     }
   };

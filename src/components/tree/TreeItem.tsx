@@ -1,4 +1,4 @@
-import { createResource, For, Show, Suspense } from "solid-js";
+import { createResource, createSignal, createEffect, For, Show, Suspense } from "solid-js";
 import { Transition } from "solid-transition-group";
 import { TreeItemProps } from "./types";
 import { useTreeContext } from "./context";
@@ -39,12 +39,15 @@ const TreeElementTransition = (props: { children: any }) => (
 
 export const TreeItem = (props: TreeItemProps) => {
   const ctx = useTreeContext();
+  const [editingLabel, setEditingLabel] = createSignal("");
+  let inputRef: HTMLInputElement | undefined;
 
   const expanded = () => ctx.expandedNodes().has(props.node.id);
   const level = () => props.node.level;
   const isSelected = () => ctx.selectedNodeId() === props.node.id;
   const isFocused = () => ctx.focusedNodeId() === props.node.id;
   const isCut = () => ctx.cutNodeId() === props.node.id;
+  const isEditing = () => ctx.editingNodeId() === props.node.id;
 
   const [childrenResource] = createResource(
     () => (expanded() && props.node.hasChildren ? props.node.id : null),
@@ -76,6 +79,49 @@ export const TreeItem = (props: TreeItemProps) => {
     handleToggle();
   };
 
+  const startEditing = () => {
+    setEditingLabel(props.node.label);
+    setTimeout(() => {
+      if (inputRef) {
+        inputRef.focus();
+        inputRef.select();
+      }
+    }, 0);
+  };
+
+  const commitEdit = () => {
+    const newLabel = editingLabel().trim();
+    if (newLabel && newLabel !== props.node.label) {
+      ctx.onRenameCommit(props.node.id, newLabel);
+    } else {
+      ctx.onRenameCancel();
+    }
+  };
+
+  const cancelEdit = () => {
+    ctx.onRenameCancel();
+  };
+
+  const handleInputKeyDown = (e: KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === "Enter") {
+      commitEdit();
+    } else if (e.key === "Escape") {
+      cancelEdit();
+    }
+  };
+
+  const handleInputBlur = () => {
+    commitEdit();
+  };
+
+  // Start editing when node becomes the editing target
+  createEffect(() => {
+    if (isEditing()) {
+      startEditing();
+    }
+  });
+
   return (
     <li>
       <a
@@ -106,7 +152,21 @@ export const TreeItem = (props: TreeItemProps) => {
             <ExpandCollapseIcon expanded={expanded()} />
           </button>
         </Show>
-        <span class="flex-1">{props.node.label}</span>
+        <Show
+          when={isEditing()}
+          fallback={<span class="flex-1">{props.node.label}</span>}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            class="input input-sm flex-1 min-w-0"
+            value={editingLabel()}
+            onInput={(e) => setEditingLabel(e.currentTarget.value)}
+            onKeyDown={handleInputKeyDown}
+            onBlur={handleInputBlur}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </Show>
       </a>
 
       <TreeElementTransition>

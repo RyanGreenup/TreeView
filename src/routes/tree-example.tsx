@@ -97,6 +97,31 @@ const handleCutPaste = (source_id: string, target_id: string): boolean => {
   return false;
 };
 
+/**
+ * Handles renaming a tree node by updating its label in the flat data structure.
+ * 
+ * @param node_id - The ID of the node being renamed
+ * @param new_label - The new label for the node
+ * @returns boolean - Returns true if the operation was successful, false otherwise
+ * 
+ * @example
+ * // Rename "Project A" to "New Project"
+ * handleRename("1-1-1", "New Project");
+ */
+const handleRename = (node_id: string, new_label: string): boolean => {
+  // Find the item in the flat data structure
+  const item = flatTreeData.find((item) => item.id === node_id);
+
+  if (item && new_label.trim()) {
+    // Update the label
+    item.label = new_label.trim();
+    console.log(`Renamed node ${node_id} to "${new_label}"`);
+    return true;
+  }
+
+  return false;
+};
+
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
   // Simulate network delay
@@ -144,6 +169,7 @@ export default function TreeExample() {
         paste: (targetId: string) => void;
         clearCut: () => void;
         refreshTree: () => void;
+        rename: (nodeId?: string) => void;
       }
     | undefined;
 
@@ -171,8 +197,8 @@ export default function TreeExample() {
     
     // Simple context menu - you could enhance this with a proper dropdown
     const action = prompt(
-      `Choose action for "${node.label}":\n1. Cut\n2. Paste\n3. Move to Root\n4. Cancel`,
-      "4",
+      `Choose action for "${node.label}":\n1. Cut\n2. Paste\n3. Move to Root\n4. Rename\n5. Cancel`,
+      "5",
     );
     
     switch (action) {
@@ -188,6 +214,10 @@ export default function TreeExample() {
         handleCutPaste(node.id, "__virtual_root__");
         treeViewRef?.refreshTree();
         console.log("Moved to root:", node.id);
+        break;
+      case "4":
+        treeViewRef?.rename(node.id);
+        console.log("Rename node:", node.id);
         break;
       default:
         console.log("Context menu cancelled");
@@ -287,6 +317,12 @@ export default function TreeExample() {
                     Clear Cut
                   </button>
                   <button
+                    class="btn btn-outline btn-sm"
+                    onClick={() => treeViewRef?.rename()}
+                  >
+                    Rename Focused
+                  </button>
+                  <button
                     class="btn btn-outline btn-sm btn-accent"
                     onClick={() => treeViewRef?.refreshTree()}
                   >
@@ -299,6 +335,7 @@ export default function TreeExample() {
                 onFocus={handleFocus}
                 onExpand={handleExpand}
                 onCutPaste={handleCutPaste}
+                onRename={handleRename}
                 onContextMenu={handleContextMenu}
                 loadChildren={loadChildren}
                 ref={(ref) => (treeViewRef = ref)}
@@ -404,6 +441,10 @@ export default function TreeExample() {
                 <div class="flex items-center justify-between">
                   <span class="text-sm">Clear Cut</span>
                   <kbd class="kbd kbd-xs">Esc</kbd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm">Rename</span>
+                  <kbd class="kbd kbd-xs">F2</kbd>
                 </div>
               </div>
             </div>

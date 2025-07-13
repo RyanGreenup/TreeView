@@ -8,7 +8,8 @@ export const TREE_KEYBOARD_SHORTCUTS = {
   CUT: "x",
   PASTE: "v", 
   ESCAPE: "Escape",
-  MOVE_TO_ROOT: "r"
+  MOVE_TO_ROOT: "r",
+  RENAME: "F2"
 } as const;
 
 export const ANIMATION_CLASSES = {

@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
-import { TreeView, TreeNode } from "~/components/TreeView";
 import { StatusDisplay } from "~/components/StatusDisplay";
+import { TreeNode, TreeView } from "~/components/TreeView";
 
 // Mock data for the tree
 const mockTreeData: TreeNode[] = [
@@ -38,74 +38,166 @@ const mockTreeData: TreeNode[] = [
   },
 ];
 
+// Mutable hashmap to store children data
+const childrenMap = new Map<string, TreeNode[]>([
+  [
+    "1-1",
+    [
+      { id: "1-1-1", label: "Project A", hasChildren: false, level: 0 },
+      { id: "1-1-2", label: "Project B", hasChildren: true, level: 0 },
+      { id: "1-1-3", label: "Meeting Notes", hasChildren: false, level: 0 },
+    ],
+  ],
+  [
+    "1-2",
+    [
+      { id: "1-2-1", label: "Tax Documents", hasChildren: false, level: 0 },
+      { id: "1-2-2", label: "Insurance", hasChildren: false, level: 0 },
+      { id: "1-2-3", label: "Receipts", hasChildren: true, level: 0 },
+    ],
+  ],
+  [
+    "1-1-2",
+    [
+      { id: "1-1-2-1", label: "Design Files", hasChildren: false, level: 0 },
+      { id: "1-1-2-2", label: "Code Review", hasChildren: false, level: 0 },
+    ],
+  ],
+  [
+    "1-2-3",
+    [
+      { id: "1-2-3-1", label: "2023", hasChildren: false, level: 0 },
+      { id: "1-2-3-2", label: "2024", hasChildren: false, level: 0 },
+    ],
+  ],
+  [
+    "2",
+    [
+      { id: "2-1", label: "Vacation", hasChildren: true, level: 0 },
+      { id: "2-2", label: "Family", hasChildren: true, level: 0 },
+      { id: "2-3", label: "Screenshots", hasChildren: false, level: 0 },
+    ],
+  ],
+  [
+    "2-1",
+    [
+      { id: "2-1-1", label: "Beach Trip 2023", hasChildren: false, level: 0 },
+      {
+        id: "2-1-2",
+        label: "Mountain Hike 2024",
+        hasChildren: false,
+        level: 0,
+      },
+    ],
+  ],
+  [
+    "2-2",
+    [
+      { id: "2-2-1", label: "Birthday Party", hasChildren: false, level: 0 },
+      { id: "2-2-2", label: "Christmas 2023", hasChildren: false, level: 0 },
+    ],
+  ],
+  [
+    "3",
+    [
+      { id: "3-1", label: "Tutorials", hasChildren: false, level: 0 },
+      { id: "3-2", label: "Movies", hasChildren: true, level: 0 },
+      { id: "3-3", label: "Personal", hasChildren: false, level: 0 },
+    ],
+  ],
+  [
+    "3-2",
+    [
+      { id: "3-2-1", label: "Action", hasChildren: false, level: 0 },
+      { id: "3-2-2", label: "Comedy", hasChildren: false, level: 0 },
+      { id: "3-2-3", label: "Documentary", hasChildren: false, level: 0 },
+    ],
+  ],
+]);
+
+const handleCutPaste = (source_id: string, target_id: string) => {
+  // Find the source node in the childrenMap
+  let sourceNode: TreeNode | null = null;
+  let sourceParentId: string | null = null;
+
+  // Search through all entries in childrenMap to find the source node
+  for (const [parentId, children] of childrenMap.entries()) {
+    const foundNode = children.find((child) => child.id === source_id);
+    if (foundNode) {
+      sourceNode = foundNode;
+      sourceParentId = parentId;
+      break;
+    }
+  }
+
+  // If source node not found, return early
+  if (!sourceNode || !sourceParentId) {
+    console.warn(`Source node with id ${source_id} not found`);
+    return;
+  }
+
+  // Remove source node from its current parent
+  const sourceParentChildren = childrenMap.get(sourceParentId);
+  if (sourceParentChildren) {
+    const updatedSourceParentChildren = sourceParentChildren.filter(
+      (child) => child.id !== source_id,
+    );
+    childrenMap.set(sourceParentId, updatedSourceParentChildren);
+  }
+
+  // Add source node to target parent
+  const targetChildren = childrenMap.get(target_id) || [];
+  targetChildren.push(sourceNode);
+  childrenMap.set(target_id, targetChildren);
+
+  // Update the target node's hasChildren property if it exists in the tree
+  const updateNodeHasChildren = (nodes: TreeNode[]): TreeNode[] => {
+    return nodes.map((node) => {
+      if (node.id === target_id) {
+        return { ...node, hasChildren: true };
+      }
+      if (node.children) {
+        return { ...node, children: updateNodeHasChildren(node.children) };
+      }
+      return node;
+    });
+  };
+
+  // Update the main tree data structure if the target is a root node
+  mockTreeData.forEach((node, index) => {
+    if (node.id === target_id) {
+      mockTreeData[index] = { ...node, hasChildren: true };
+    }
+  });
+
+  console.log(`Moved node ${source_id} from ${sourceParentId} to ${target_id}`);
+};
+
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
   // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
-  // Return mock children based on nodeId
-  switch (nodeId) {
-    case "1-1":
-      return [
-        { id: "1-1-1", label: "Project A", hasChildren: false },
-        { id: "1-1-2", label: "Project B", hasChildren: true },
-        { id: "1-1-3", label: "Meeting Notes", hasChildren: false },
-      ];
-    case "1-2":
-      return [
-        { id: "1-2-1", label: "Tax Documents", hasChildren: false },
-        { id: "1-2-2", label: "Insurance", hasChildren: false },
-        { id: "1-2-3", label: "Receipts", hasChildren: true },
-      ];
-    case "1-1-2":
-      return [
-        { id: "1-1-2-1", label: "Design Files", hasChildren: false },
-        { id: "1-1-2-2", label: "Code Review", hasChildren: false },
-      ];
-    case "1-2-3":
-      return [
-        { id: "1-2-3-1", label: "2023", hasChildren: false },
-        { id: "1-2-3-2", label: "2024", hasChildren: false },
-      ];
-    case "2":
-      return [
-        { id: "2-1", label: "Vacation", hasChildren: true },
-        { id: "2-2", label: "Family", hasChildren: true },
-        { id: "2-3", label: "Screenshots", hasChildren: false },
-      ];
-    case "2-1":
-      return [
-        { id: "2-1-1", label: "Beach Trip 2023", hasChildren: false },
-        { id: "2-1-2", label: "Mountain Hike 2024", hasChildren: false },
-      ];
-    case "2-2":
-      return [
-        { id: "2-2-1", label: "Birthday Party", hasChildren: false },
-        { id: "2-2-2", label: "Christmas 2023", hasChildren: false },
-      ];
-    case "3":
-      return [
-        { id: "3-1", label: "Tutorials", hasChildren: false },
-        { id: "3-2", label: "Movies", hasChildren: true },
-        { id: "3-3", label: "Personal", hasChildren: false },
-      ];
-    case "3-2":
-      return [
-        { id: "3-2-1", label: "Action", hasChildren: false },
-        { id: "3-2-2", label: "Comedy", hasChildren: false },
-        { id: "3-2-3", label: "Documentary", hasChildren: false },
-      ];
-    default:
-      return [];
-  }
+  // Return mock children from hashmap
+  return childrenMap.get(nodeId) || [];
 };
 
 export default function TreeExample() {
   const [selectedItem, setSelectedItem] = createSignal<TreeNode | null>(null);
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
   const [expandedItems, setExpandedItems] = createSignal<string[]>([]);
-  
-  let treeViewRef: { expandAll: () => void; collapseAll: () => void; collapseAllExceptFocused: () => void; collapseAllExceptSelected: () => void; collapseSome: () => void; foldCycle: () => void; focusAndReveal: (nodeId: string) => Promise<void> } | undefined;
+
+  let treeViewRef:
+    | {
+        expandAll: () => void;
+        collapseAll: () => void;
+        collapseAllExceptFocused: () => void;
+        collapseAllExceptSelected: () => void;
+        collapseSome: () => void;
+        foldCycle: () => void;
+        focusAndReveal: (nodeId: string) => Promise<void>;
+      }
+    | undefined;
 
   const handleSelect = (node: TreeNode) => {
     setSelectedItem(node);

@@ -2,6 +2,7 @@ import {
   Accessor,
   createContext,
   createEffect,
+  createMemo,
   createResource,
   createSignal,
   For,
@@ -228,18 +229,24 @@ export const TreeView = (props: TreeViewProps) => {
   const [loadedChildren, setLoadedChildren] = createSignal<
     Map<string, TreeNode[]>
   >(new Map());
-  const [flattenedNodes, setFlattenedNodes] = createSignal<TreeNode[]>([]);
-
   let treeRef: HTMLUListElement | undefined;
   let containerRef: HTMLDivElement | undefined;
 
-  createEffect(() => {
-    // Re-flatten when expanded nodes or loaded children change
-    expandedNodes();
-    loadedChildren();
-    setFlattenedNodes(
-      flattenTree(props.nodes, undefined, expandedNodes, loadedChildren),
-    );
+  // Memoize expensive tree flattening computation
+  const flattenedNodes = createMemo(() => 
+    flattenTree(props.nodes, undefined, expandedNodes, loadedChildren)
+  );
+
+  // Memoize accessor functions to prevent creating new functions on every render
+  const focusedNodeId = createMemo(() => focusedNode()?.id);
+  const selectedNodeId = createMemo(() => selectedNode()?.id);
+
+  // Memoize current index for keyboard navigation
+  const currentNodeIndex = createMemo(() => {
+    const currentNode = focusedNode();
+    return currentNode 
+      ? flattenedNodes().findIndex((n) => n.id === currentNode.id)
+      : -1;
   });
 
   // Reactive effect to scroll focused item into view
@@ -294,7 +301,7 @@ export const TreeView = (props: TreeViewProps) => {
     const currentNode = focusedNode();
     if (!currentNode) return;
 
-    const currentIndex = flattened.findIndex((n) => n.id === currentNode.id);
+    const currentIndex = currentNodeIndex();
 
     const focusDown = () => {
       e.preventDefault();
@@ -387,20 +394,21 @@ export const TreeView = (props: TreeViewProps) => {
     }
   });
 
-  const contextValue: TreeContextValue = {
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = createMemo((): TreeContextValue => ({
     expandedNodes,
-    focusedNodeId: () => focusedNode()?.id,
-    selectedNodeId: () => selectedNode()?.id,
+    focusedNodeId,
+    selectedNodeId,
     loadedChildren,
     onSelect: handleSelect,
     onFocus: handleFocus,
     onExpand: handleExpand,
     onChildrenLoaded: handleChildrenLoaded,
     loadChildren: props.loadChildren,
-  };
+  }));
 
   return (
-    <TreeContext.Provider value={contextValue}>
+    <TreeContext.Provider value={contextValue()}>
       <div
         ref={containerRef}
         class={`max-h-96 overflow-y-auto ${props.class || ""}`}

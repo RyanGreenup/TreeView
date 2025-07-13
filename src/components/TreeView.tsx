@@ -294,9 +294,56 @@ export const TreeView = (props: TreeViewProps) => {
   };
 
   const expandAll = async () => {
-    alert(
-      "This is not implemented. When Implemented it will expand all nodes in the tree",
-    );
+    if (!props.loadChildren) {
+      return;
+    }
+
+    const expandLevel = async (nodes: TreeNode[]) => {
+      const nodesToExpand = nodes.filter(node => node.hasChildren);
+      
+      if (nodesToExpand.length === 0) {
+        return;
+      }
+
+      // First, expand all nodes at this level immediately
+      setExpandedNodes(prev => {
+        const newSet = new Set(prev);
+        nodesToExpand.forEach(node => newSet.add(node.id));
+        return newSet;
+      });
+
+      // Then load children for each node at this level
+      const childrenLoadPromises = nodesToExpand.map(async (node) => {
+        try {
+          const children = await props.loadChildren!(node.id);
+          if (children && children.length > 0) {
+            // Update loaded children immediately when they arrive
+            setLoadedChildren((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(node.id, children);
+              return newMap;
+            });
+            return children;
+          }
+        } catch (error) {
+          console.warn(`Failed to load children for node ${node.id}:`, error);
+        }
+        return [];
+      });
+
+      // Wait for all children at this level to load
+      const allChildrenArrays = await Promise.all(childrenLoadPromises);
+      
+      // Flatten all children for the next level
+      const nextLevelNodes = allChildrenArrays.flat();
+      
+      // Recursively expand the next level
+      if (nextLevelNodes.length > 0) {
+        await expandLevel(nextLevelNodes);
+      }
+    };
+
+    await expandLevel(props.nodes);
   };
 
   const collapseAll = () => {

@@ -41,8 +41,8 @@ const mockTreeData: TreeNode[] = [
 // Mock function to simulate loading children from a remote source
 const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
   // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
   // Return mock children based on nodeId
   switch (nodeId) {
     case "1-1":
@@ -116,10 +116,10 @@ export default function TreeExample() {
   };
 
   const handleExpand = (nodeId: string) => {
-    setExpandedItems(prev => 
-      prev.includes(nodeId) 
-        ? prev.filter(id => id !== nodeId)
-        : [...prev, nodeId]
+    setExpandedItems((prev) =>
+      prev.includes(nodeId)
+        ? prev.filter((id) => id !== nodeId)
+        : [...prev, nodeId],
     );
     console.log("Expanded/Collapsed:", nodeId);
   };
@@ -130,58 +130,72 @@ export default function TreeExample() {
         <div class="hero-content text-center">
           <div class="max-w-md">
             <h1 class="text-4xl font-bold">TreeView Component</h1>
-            <p class="py-6">Professional tree component with DaisyUI styling, keyboard navigation, and lazy loading.</p>
+            <p class="py-6">
+              Professional tree component with DaisyUI styling, keyboard
+              navigation, and lazy loading.
+            </p>
           </div>
         </div>
       </div>
-      
+
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2">
           <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
               <h2 class="card-title">File Explorer</h2>
-              <p class="text-sm opacity-70 mb-4">Click to select, use keyboard arrows to navigate</p>
+              <p class="text-sm opacity-70 mb-4">
+                Click to select, use keyboard arrows to navigate
+              </p>
               <TreeView
                 nodes={mockTreeData}
                 onSelect={handleSelect}
                 onFocus={handleFocus}
                 onExpand={handleExpand}
                 loadChildren={loadChildren}
-                class="max-h-96 overflow-y-auto"
               />
             </div>
           </div>
         </div>
-        
+
         <div class="space-y-6">
           <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
               <h2 class="card-title">Current Status</h2>
-              
+
               <div class="space-y-4">
-                <StatusDisplay 
+                <StatusDisplay
                   title="FOCUSED ITEM"
-                  data={focusedItem() ? {
-                    id: focusedItem()!.id,
-                    label: focusedItem()!.label,
-                    level: focusedItem()!.level || 0
-                  } : null}
+                  data={
+                    focusedItem()
+                      ? {
+                          id: focusedItem()!.id,
+                          label: focusedItem()!.label,
+                          level: focusedItem()!.level || 0,
+                        }
+                      : null
+                  }
                 />
-                
-                <StatusDisplay 
+
+                <StatusDisplay
                   title="SELECTED ITEM"
-                  data={selectedItem() ? {
-                    id: selectedItem()!.id,
-                    label: selectedItem()!.label,
-                    hasChildren: selectedItem()!.hasChildren
-                  } : null}
+                  data={
+                    selectedItem()
+                      ? {
+                          id: selectedItem()!.id,
+                          label: selectedItem()!.label,
+                          hasChildren: selectedItem()!.hasChildren,
+                        }
+                      : null
+                  }
                 />
-                
+
                 <div>
-                  <h3 class="font-semibold text-sm text-base-content/70 mb-2">EXPANDED NODES</h3>
+                  <h3 class="font-semibold text-sm text-base-content/70 mb-2">
+                    EXPANDED NODES
+                  </h3>
                   <div class="flex flex-wrap gap-1">
                     {expandedItems().length > 0 ? (
-                      expandedItems().map(id => (
+                      expandedItems().map((id) => (
                         <div class="badge badge-primary badge-sm">{id}</div>
                       ))
                     ) : (
@@ -192,7 +206,7 @@ export default function TreeExample() {
               </div>
             </div>
           </div>
-          
+
           <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
               <h2 class="card-title">Keyboard Shortcuts</h2>

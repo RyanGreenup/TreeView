@@ -1,12 +1,12 @@
-import { 
-  createSignal, 
-  createResource, 
-  For, 
-  Show, 
-  Suspense, 
+import {
+  createSignal,
+  createResource,
+  For,
+  Show,
+  Suspense,
   onMount,
   createEffect,
-  JSX
+  JSX,
 } from "solid-js";
 
 export interface TreeNode {
@@ -42,18 +42,22 @@ export interface TreeItemProps {
 const TreeItem = (props: TreeItemProps) => {
   // Use the expanded state from parent instead of local state
   const expanded = () => props.expandedNodes?.has(props.node.id) || false;
-  
+
   // Only load children if we don't have static children
   const [childrenResource] = createResource(
-    () => expanded() && props.node.hasChildren && !props.node.children ? props.node.id : null,
+    () =>
+      expanded() && props.node.hasChildren && !props.node.children
+        ? props.node.id
+        : null,
     async (nodeId) => {
-      const children = await (props.loadChildren?.(nodeId) || Promise.resolve([]));
+      const children = await (props.loadChildren?.(nodeId) ||
+        Promise.resolve([]));
       // Notify parent about loaded children so they can be included in keyboard navigation
       if (children.length > 0) {
         props.onChildrenLoaded?.(nodeId, children);
       }
       return children;
-    }
+    },
   );
 
   const handleToggle = () => {
@@ -72,15 +76,13 @@ const TreeItem = (props: TreeItemProps) => {
   const isFocused = () => props.focusedNodeId === props.node.id;
 
   return (
-    <>
-      <div
+    <li>
+      <a
         class={`
-          flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-all duration-200
-          ${isSelected() ? 'bg-primary text-primary-content shadow-sm' : 'hover:bg-base-200'}
-          ${isFocused() ? 'ring-2 ring-primary ring-offset-2 ring-offset-base-100' : ''}
-          ${isSelected() && isFocused() ? 'ring-2 ring-primary-content ring-offset-2 ring-offset-primary' : ''}
+          flex items-center gap-2 
+          ${isSelected() ? "active" : ""}
+          ${isFocused() ? "ring-2 ring-primary ring-offset-2 ring-offset-base-200" : ""}
         `}
-        style={{ "margin-left": `${level * 1.5}rem` }}
         onClick={handleClick}
         data-node-id={props.node.id}
         role="treeitem"
@@ -88,16 +90,12 @@ const TreeItem = (props: TreeItemProps) => {
         aria-level={level + 1}
         aria-selected={isSelected()}
       >
-        <Show 
+        <Show
           when={props.node.hasChildren}
-          fallback={<div class="w-4 h-4"></div>}
+          fallback={<div class="w-4 h-4 opacity-0"></div>}
         >
           <button
-            class={`
-              btn btn-ghost btn-xs btn-square flex-shrink-0 
-              ${isSelected() ? 'btn-primary' : ''} 
-              hover:btn-primary focus:btn-primary
-            `}
+            class="btn btn-ghost btn-xs btn-square"
             onClick={(e) => {
               e.stopPropagation();
               handleToggle();
@@ -106,32 +104,36 @@ const TreeItem = (props: TreeItemProps) => {
             aria-label={expanded() ? "Collapse" : "Expand"}
           >
             <svg
-              class={`w-3 h-3 transition-transform duration-200 ${expanded() ? 'rotate-90' : ''}`}
+              class={`w-3 h-3 transition-transform duration-200 ${expanded() ? "rotate-90" : ""}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              />
             </svg>
           </button>
         </Show>
-        <span class="flex-1 text-sm truncate">{props.node.label}</span>
-      </div>
-      
+        <span class="flex-1">{props.node.label}</span>
+      </a>
+
       <Show when={expanded() && props.node.hasChildren}>
-        <div role="group">
+        <ul>
           <Show
             when={props.node.children && props.node.children.length > 0}
             fallback={
               <Suspense
                 fallback={
-                  <div 
-                    class="flex items-center gap-2 p-2 text-sm opacity-60" 
-                    style={{ "margin-left": `${(level + 1) * 1.5}rem` }}
-                  >
-                    <span class="loading loading-spinner loading-xs"></span>
-                    <span>Loading...</span>
-                  </div>
+                  <li class="px-4 py-2">
+                    <div class="flex items-center gap-2 text-sm opacity-60">
+                      <span class="loading loading-spinner loading-xs"></span>
+                      <span>Loading...</span>
+                    </div>
+                  </li>
                 }
               >
                 <For each={childrenResource()}>
@@ -168,28 +170,34 @@ const TreeItem = (props: TreeItemProps) => {
               )}
             </For>
           </Show>
-        </div>
+        </ul>
       </Show>
-    </>
+    </li>
   );
 };
 
 // Helper function to scroll an element into view if it's not fully visible
-const scrollIntoViewIfNeeded = (element: HTMLElement, container: HTMLElement) => {
+const scrollIntoViewIfNeeded = (
+  element: HTMLElement,
+  container: HTMLElement,
+) => {
   const elementRect = element.getBoundingClientRect();
   const containerRect = container.getBoundingClientRect();
-  
+
   const isAbove = elementRect.top < containerRect.top;
   const isBelow = elementRect.bottom > containerRect.bottom;
-  
+
   if (isAbove || isBelow) {
     // Try modern scrollIntoView first
-    if ('scrollIntoView' in element && typeof element.scrollIntoView === 'function') {
+    if (
+      "scrollIntoView" in element &&
+      typeof element.scrollIntoView === "function"
+    ) {
       try {
         element.scrollIntoView({
-          behavior: 'smooth',
-          block: isAbove ? 'start' : 'end',
-          inline: 'nearest'
+          behavior: "smooth",
+          block: isAbove ? "start" : "end",
+          inline: "nearest",
         });
       } catch {
         // Fallback for older browsers
@@ -201,7 +209,7 @@ const scrollIntoViewIfNeeded = (element: HTMLElement, container: HTMLElement) =>
       const elementHeight = element.offsetHeight;
       const containerScrollTop = container.scrollTop;
       const containerHeight = container.clientHeight;
-      
+
       if (isAbove) {
         container.scrollTop = elementTop - 10; // 10px padding
       } else if (isBelow) {
@@ -214,34 +222,38 @@ const scrollIntoViewIfNeeded = (element: HTMLElement, container: HTMLElement) =>
 export const TreeView = (props: TreeViewProps) => {
   const [selectedNode, setSelectedNode] = createSignal<TreeNode | null>(null);
   const [focusedNode, setFocusedNode] = createSignal<TreeNode | null>(null);
-  const [expandedNodes, setExpandedNodes] = createSignal<Set<string>>(new Set());
-  const [loadedChildren, setLoadedChildren] = createSignal<Map<string, TreeNode[]>>(new Map());
+  const [expandedNodes, setExpandedNodes] = createSignal<Set<string>>(
+    new Set(),
+  );
+  const [loadedChildren, setLoadedChildren] = createSignal<
+    Map<string, TreeNode[]>
+  >(new Map());
   const [flattenedNodes, setFlattenedNodes] = createSignal<TreeNode[]>([]);
 
-  let treeRef: HTMLDivElement | undefined;
+  let treeRef: HTMLUListElement | undefined;
 
   // Flatten the tree structure for keyboard navigation
   const flattenTree = (nodes: TreeNode[], level = 0): TreeNode[] => {
     const flattened: TreeNode[] = [];
     const expanded = expandedNodes();
     const loaded = loadedChildren();
-    
+
     for (const node of nodes) {
       const nodeWithLevel = { ...node, level };
       flattened.push(nodeWithLevel);
-      
+
       if (expanded.has(node.id)) {
         let childrenToFlatten: TreeNode[] = [];
-        
+
         // Prioritize static children if available
         if (node.children && node.children.length > 0) {
           childrenToFlatten = node.children;
-        } 
+        }
         // Otherwise use dynamically loaded children
         else if (loaded.has(node.id)) {
           childrenToFlatten = loaded.get(node.id) || [];
         }
-        
+
         if (childrenToFlatten.length > 0) {
           flattened.push(...flattenTree(childrenToFlatten, level + 1));
         }
@@ -265,10 +277,12 @@ export const TreeView = (props: TreeViewProps) => {
   const handleFocus = (node: TreeNode) => {
     setFocusedNode(node);
     props.onFocus?.(node);
-    
+
     // Scroll the focused item into view
     setTimeout(() => {
-      const focusedElement = treeRef?.querySelector(`[data-node-id="${node.id}"]`) as HTMLElement;
+      const focusedElement = treeRef?.querySelector(
+        `a[data-node-id="${node.id}"]`,
+      ) as HTMLElement;
       if (focusedElement && treeRef) {
         scrollIntoViewIfNeeded(focusedElement, treeRef);
       }
@@ -276,7 +290,7 @@ export const TreeView = (props: TreeViewProps) => {
   };
 
   const handleExpand = (nodeId: string) => {
-    setExpandedNodes(prev => {
+    setExpandedNodes((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(nodeId)) {
         newSet.delete(nodeId);
@@ -289,7 +303,7 @@ export const TreeView = (props: TreeViewProps) => {
   };
 
   const handleChildrenLoaded = (nodeId: string, children: TreeNode[]) => {
-    setLoadedChildren(prev => {
+    setLoadedChildren((prev) => {
       const newMap = new Map(prev);
       newMap.set(nodeId, children);
       return newMap;
@@ -300,37 +314,41 @@ export const TreeView = (props: TreeViewProps) => {
     const flattened = flattenedNodes();
     const currentNode = focusedNode();
     if (!currentNode) return;
-    
-    const currentIndex = flattened.findIndex(n => n.id === currentNode.id);
-    
+
+    const currentIndex = flattened.findIndex((n) => n.id === currentNode.id);
+
     switch (e.key) {
-      case 'ArrowDown':
+      case "ArrowDown":
         e.preventDefault();
         if (currentIndex < flattened.length - 1) {
           const nextNode = flattened[currentIndex + 1];
           handleFocus(nextNode);
         }
         break;
-        
-      case 'ArrowUp':
+
+      case "ArrowUp":
         e.preventDefault();
         if (currentIndex > 0) {
           const prevNode = flattened[currentIndex - 1];
           handleFocus(prevNode);
         }
         break;
-        
-      case 'ArrowRight':
+
+      case "ArrowRight":
         e.preventDefault();
         if (currentNode.hasChildren && !expandedNodes().has(currentNode.id)) {
           handleExpand(currentNode.id);
-        } else if (currentNode.hasChildren && expandedNodes().has(currentNode.id) && flattened[currentIndex + 1]) {
+        } else if (
+          currentNode.hasChildren &&
+          expandedNodes().has(currentNode.id) &&
+          flattened[currentIndex + 1]
+        ) {
           const nextNode = flattened[currentIndex + 1];
           handleFocus(nextNode);
         }
         break;
-        
-      case 'ArrowLeft':
+
+      case "ArrowLeft":
         e.preventDefault();
         if (currentNode.hasChildren && expandedNodes().has(currentNode.id)) {
           handleExpand(currentNode.id);
@@ -344,21 +362,21 @@ export const TreeView = (props: TreeViewProps) => {
           }
         }
         break;
-        
-      case 'Enter':
-      case ' ':
+
+      case "Enter":
+      case " ":
         e.preventDefault();
         handleSelect(currentNode);
         break;
-        
-      case 'Home':
+
+      case "Home":
         e.preventDefault();
         if (flattened.length > 0) {
           handleFocus(flattened[0]);
         }
         break;
-        
-      case 'End':
+
+      case "End":
         e.preventDefault();
         if (flattened.length > 0) {
           handleFocus(flattened[flattened.length - 1]);
@@ -372,7 +390,9 @@ export const TreeView = (props: TreeViewProps) => {
       setFocusedNode(props.nodes[0]);
       // Ensure the first item is visible
       setTimeout(() => {
-        const firstElement = treeRef?.querySelector('[data-node-id]') as HTMLElement;
+        const firstElement = treeRef?.querySelector(
+          "a[data-node-id]",
+        ) as HTMLElement;
         if (firstElement && treeRef) {
           scrollIntoViewIfNeeded(firstElement, treeRef);
         }
@@ -381,29 +401,31 @@ export const TreeView = (props: TreeViewProps) => {
   });
 
   return (
-    <div
-      ref={treeRef}
-      class={`bg-base-100 border border-base-300 rounded-box p-4 w-full ${props.class || ''}`}
-      role="tree"
-      aria-label="Tree View"
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-    >
-      <For each={props.nodes}>
-        {(node) => (
-          <TreeItem
-            node={{ ...node, level: 0 }}
-            onSelect={handleSelect}
-            onFocus={handleFocus}
-            onExpand={handleExpand}
-            loadChildren={props.loadChildren}
-            onChildrenLoaded={handleChildrenLoaded}
-            expandedNodes={expandedNodes()}
-            focusedNodeId={focusedNode()?.id}
-            selectedNodeId={selectedNode()?.id}
-          />
-        )}
-      </For>
+    <div class="max-h-96 overflow-y-auto">
+      <ul
+        ref={treeRef}
+        class={`menu bg-base-200 rounded-box w-full `}
+        role="tree"
+        aria-label="Tree View"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+      >
+        <For each={props.nodes}>
+          {(node) => (
+            <TreeItem
+              node={{ ...node, level: 0 }}
+              onSelect={handleSelect}
+              onFocus={handleFocus}
+              onExpand={handleExpand}
+              loadChildren={props.loadChildren}
+              onChildrenLoaded={handleChildrenLoaded}
+              expandedNodes={expandedNodes()}
+              focusedNodeId={focusedNode()?.id}
+              selectedNodeId={selectedNode()?.id}
+            />
+          )}
+        </For>
+      </ul>
     </div>
   );
 };

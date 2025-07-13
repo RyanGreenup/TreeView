@@ -558,6 +558,16 @@ export const TreeView = (props: TreeViewProps) => {
     }
   });
 
+  // Restore focus to tree when editing stops
+  createEffect((prevEditing) => {
+    const editing = editingNodeId();
+    // Only restore focus when transitioning from editing to not editing
+    if (prevEditing && editing === undefined && treeRef) {
+      treeRef.focus();
+    }
+    return editing;
+  });
+
   const contextValue = createMemo((): TreeContextValue => ({
     expandedNodes,
     focusedNodeId,

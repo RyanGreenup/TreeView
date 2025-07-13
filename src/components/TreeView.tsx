@@ -11,7 +11,7 @@ import {
 
 import { TreeItem } from "./tree/TreeItem";
 import { TreeContext } from "./tree/context";
-import { VIRTUAL_ROOT_ID } from "./tree/constants";
+import { VIRTUAL_ROOT_ID, REFRESH_TREE_AFTER_RENAME } from "./tree/constants";
 import { createKeyboardHandler } from "./tree/keyboard";
 import {
   flattenTree,
@@ -171,7 +171,9 @@ export const TreeView = (props: TreeViewProps) => {
       const success = others.onRename(nodeId, newLabel);
       if (success) {
         setEditingNodeId(undefined);
-        refreshTree();
+        if (REFRESH_TREE_AFTER_RENAME) {
+          refreshTree();
+        } 
       }
     }
   };

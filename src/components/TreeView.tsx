@@ -59,6 +59,7 @@ export interface TreeViewProps {
   onExpand?: TreeExpandHandler;
   loadChildren?: TreeChildrenLoader;
   class?: string;
+  ref?: (ref: { expandAll: () => void }) => void;
 }
 
 export interface TreeItemProps {
@@ -294,6 +295,29 @@ export const TreeView = (props: TreeViewProps) => {
     });
   };
 
+  const expandAll = () => {
+    const getAllNodeIds = (nodes: TreeNode[]): string[] => {
+      const ids: string[] = [];
+      
+      const traverse = (nodeList: TreeNode[]) => {
+        for (const node of nodeList) {
+          if (node.hasChildren) {
+            ids.push(node.id);
+          }
+          if (node.children) {
+            traverse(node.children);
+          }
+        }
+      };
+      
+      traverse(nodes);
+      return ids;
+    };
+
+    const allNodeIds = getAllNodeIds(props.nodes);
+    setExpandedNodes(new Set(allNodeIds));
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     const flattened = flattenedNodes();
     const currentNode = focusedNode();
@@ -390,6 +414,9 @@ export const TreeView = (props: TreeViewProps) => {
       setFocusedNode(props.nodes[0]);
       // The reactive effect will handle scrolling
     }
+    
+    // Expose API methods via ref
+    props.ref?.({ expandAll });
   });
 
   // Memoize context value to prevent unnecessary re-renders

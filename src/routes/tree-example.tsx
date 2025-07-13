@@ -104,6 +104,8 @@ export default function TreeExample() {
   const [selectedItem, setSelectedItem] = createSignal<TreeNode | null>(null);
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
   const [expandedItems, setExpandedItems] = createSignal<string[]>([]);
+  
+  let treeViewRef: { expandAll: () => void } | undefined;
 
   const handleSelect = (node: TreeNode) => {
     setSelectedItem(node);
@@ -142,16 +144,27 @@ export default function TreeExample() {
         <div class="xl:col-span-2">
           <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
-              <h2 class="card-title">File Explorer</h2>
-              <p class="text-sm opacity-70 mb-4">
-                Click to select, use keyboard arrows to navigate
-              </p>
+              <div class="flex justify-between items-center mb-4">
+                <div>
+                  <h2 class="card-title">File Explorer</h2>
+                  <p class="text-sm opacity-70">
+                    Click to select, use keyboard arrows to navigate
+                  </p>
+                </div>
+                <button
+                  class="btn btn-outline btn-sm"
+                  onClick={() => treeViewRef?.expandAll()}
+                >
+                  Expand All
+                </button>
+              </div>
               <TreeView
                 nodes={mockTreeData}
                 onSelect={handleSelect}
                 onFocus={handleFocus}
                 onExpand={handleExpand}
                 loadChildren={loadChildren}
+                ref={(ref) => (treeViewRef = ref)}
               />
             </div>
           </div>

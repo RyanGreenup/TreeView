@@ -141,7 +141,11 @@ export const TreeView = (props: TreeViewProps) => {
     if (cutId && others.onCutPaste) {
       const operationSucceeded = others.onCutPaste(cutId, targetId);
       if (operationSucceeded) {
-        refreshParentChildren(cutId, targetId);
+        // Get the source parent using the parent lookup function
+        const getParentIdFn = getParentIdMemo();
+        const sourceParentId = getParentIdFn(cutId);
+        const parentsToRefresh = [sourceParentId, targetId].filter(id => id) as string[];
+        refreshParents(parentsToRefresh);
         setCutNodeId(undefined);
       }
     }
@@ -152,7 +156,11 @@ export const TreeView = (props: TreeViewProps) => {
     
     if (targetNodeId && others.onCutPaste) {
       others.onCutPaste(targetNodeId, VIRTUAL_ROOT_ID);
-      refreshParentChildren(targetNodeId, VIRTUAL_ROOT_ID);
+      // Get the source parent for the node being moved to root
+      const getParentIdFn = getParentIdMemo();
+      const sourceParentId = getParentIdFn(targetNodeId);
+      const parentsToRefresh = [sourceParentId, VIRTUAL_ROOT_ID].filter(id => id) as string[];
+      refreshParents(parentsToRefresh);
     }
   };
 
@@ -160,25 +168,67 @@ export const TreeView = (props: TreeViewProps) => {
     setCutNodeId(undefined);
   };
 
-  const refreshSingleParent = (parentId: string) => {
-    const wasExpanded = expandedNodes().has(parentId);
+  const refreshParents = (parentIds: string[], options: { forceExpand?: boolean } = {}) => {
+    const uniqueParentIds = [...new Set(parentIds)].filter(id => id); // Remove duplicates and empty strings
     
-    // Clear the loaded children for this parent
+    // Track which parents were expanded before refresh
+    const parentsWereExpanded = new Map<string, boolean>();
+    uniqueParentIds.forEach(parentId => {
+      parentsWereExpanded.set(parentId, expandedNodes().has(parentId));
+    });
+
+    // Clear loaded children for all parents
     setLoadedChildren((prev) => {
       const newMap = new Map(prev);
-      newMap.delete(parentId);
+      uniqueParentIds.forEach(parentId => {
+        if (parentId !== VIRTUAL_ROOT_ID) {
+          newMap.delete(parentId);
+        }
+      });
       return newMap;
     });
 
-    // Always collapse first to ensure we trigger the reload
+    // Collapse all parents first to trigger reload
     setExpandedNodes((prev) => {
       const newSet = new Set(prev);
-      newSet.delete(parentId);
+      uniqueParentIds.forEach(parentId => {
+        if (parentId !== VIRTUAL_ROOT_ID) {
+          newSet.delete(parentId);
+        }
+      });
       return newSet;
     });
-    
-    // Then queue it for expansion (even if it wasn't expanded before, we want to show the new item)
-    setPendingExpansions(new Map([[parentId, true]]));
+
+    // Queue parents for re-expansion
+    const pendingMap = new Map<string, boolean>();
+    uniqueParentIds.forEach(parentId => {
+      const wasExpanded = parentsWereExpanded.get(parentId);
+      const shouldExpand = options.forceExpand || wasExpanded;
+      
+      if (shouldExpand && parentId !== VIRTUAL_ROOT_ID) {
+        pendingMap.set(parentId, true);
+      }
+    });
+
+    if (pendingMap.size > 0) {
+      setPendingExpansions(pendingMap);
+    }
+
+    // Handle virtual root refresh if needed
+    if (uniqueParentIds.includes(VIRTUAL_ROOT_ID)) {
+      setLoadedChildren((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(VIRTUAL_ROOT_ID);
+        return newMap;
+      });
+      others.loadChildren(VIRTUAL_ROOT_ID).then((children) => {
+        setLoadedChildren((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(VIRTUAL_ROOT_ID, children);
+          return newMap;
+        });
+      });
+    }
   };
 
   const handleCreateNew = (parentId?: string) => {
@@ -187,7 +237,8 @@ export const TreeView = (props: TreeViewProps) => {
     if (others.onCreate) {
       const newItemId = others.onCreate(targetParentId);
       if (newItemId) {
-        refreshSingleParent(targetParentId);
+        // Refresh the parent and force it to expand to show the new item
+        refreshParents([targetParentId], { forceExpand: true });
         // Queue the new item for focusing after the parent refreshes
         setPendingFocusNodeId(newItemId);
       }
@@ -261,64 +312,6 @@ export const TreeView = (props: TreeViewProps) => {
       getParentId(nodeId, loaded);
   });
 
-  const refreshParentChildren = (sourceId: string, targetId: string) => {
-    const getParentIdFn = getParentIdMemo();
-    const sourceParentId = getParentIdFn(sourceId);
-    const targetParentId = targetId;
-
-    const sourceParentWasExpanded = sourceParentId
-      ? expandedNodes().has(sourceParentId)
-      : false;
-    const targetParentWasExpanded = expandedNodes().has(targetParentId);
-
-    setExpandedNodes((prev) => {
-      const newSet = new Set(prev);
-      if (sourceParentId && sourceParentId !== VIRTUAL_ROOT_ID)
-        newSet.delete(sourceParentId);
-      if (targetParentId !== VIRTUAL_ROOT_ID) newSet.delete(targetParentId);
-      return newSet;
-    });
-
-    setLoadedChildren((prev) => {
-      const newMap = new Map(prev);
-      if (sourceParentId) newMap.delete(sourceParentId);
-      if (targetParentId !== VIRTUAL_ROOT_ID) newMap.delete(targetParentId);
-      return newMap;
-    });
-
-    const newPending = new Map<string, boolean>();
-    if (
-      sourceParentWasExpanded &&
-      sourceParentId &&
-      sourceParentId !== VIRTUAL_ROOT_ID
-    ) {
-      newPending.set(sourceParentId, true);
-    }
-    if (targetParentWasExpanded && targetParentId !== VIRTUAL_ROOT_ID) {
-      newPending.set(targetParentId, true);
-    }
-    if (newPending.size > 0) {
-      setPendingExpansions(newPending);
-    }
-
-    if (
-      sourceParentId === VIRTUAL_ROOT_ID ||
-      targetParentId === VIRTUAL_ROOT_ID
-    ) {
-      setLoadedChildren((prev) => {
-        const newMap = new Map(prev);
-        newMap.delete(VIRTUAL_ROOT_ID);
-        return newMap;
-      });
-      others.loadChildren(VIRTUAL_ROOT_ID).then((children) => {
-        setLoadedChildren((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(VIRTUAL_ROOT_ID, children);
-          return newMap;
-        });
-      });
-    }
-  };
 
   const expandAll = async () => {
     const expandLevel = async (nodes: TreeNode[]) => {

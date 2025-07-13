@@ -258,6 +258,7 @@ export const TreeView = (props: TreeViewProps) => {
   const [foldCycleState, setFoldCycleState] = createSignal<0 | 1 | 2>(0);
   const [cutNodeId, setCutNodeId] = createSignal<string | undefined>(undefined);
   const [refreshTrigger, setRefreshTrigger] = createSignal(0);
+  const [pendingExpansions, setPendingExpansions] = createSignal<Map<string, boolean>>(new Map());
   let treeRef: HTMLUListElement | undefined;
   let containerRef: HTMLDivElement | undefined;
 
@@ -410,15 +411,17 @@ export const TreeView = (props: TreeViewProps) => {
       return newMap;
     });
 
-    // Re-expand parents if they were expanded before
-    setTimeout(() => {
-      setExpandedNodes(prev => {
-        const newSet = new Set(prev);
-        if (sourceParentWasExpanded && sourceParentId) newSet.add(sourceParentId);
-        if (targetParentWasExpanded) newSet.add(targetParentId);
-        return newSet;
-      });
-    }, 100);
+    // Schedule re-expansion using reactive pending expansions
+    const newPending = new Map<string, boolean>();
+    if (sourceParentWasExpanded && sourceParentId) {
+      newPending.set(sourceParentId, true);
+    }
+    if (targetParentWasExpanded) {
+      newPending.set(targetParentId, true);
+    }
+    if (newPending.size > 0) {
+      setPendingExpansions(newPending);
+    }
   };
 
   const refreshAfterMoveToRoot = (sourceId: string) => {
@@ -446,22 +449,16 @@ export const TreeView = (props: TreeViewProps) => {
         return newMap;
       });
 
-      // Re-expand source parent if it was expanded before
-      setTimeout(() => {
-        if (sourceParentWasExpanded) {
-          setExpandedNodes(prev => {
-            const newSet = new Set(prev);
-            newSet.add(sourceParentId);
-            return newSet;
-          });
-        }
-      }, 100);
+      // Schedule re-expansion using reactive pending expansions
+      if (sourceParentWasExpanded) {
+        const newPending = new Map<string, boolean>();
+        newPending.set(sourceParentId, true);
+        setPendingExpansions(newPending);
+      }
     }
 
     // Refresh root data by triggering the refresh signal
-    setTimeout(() => {
-      setRefreshTrigger(prev => prev + 1);
-    }, 200);
+    setRefreshTrigger(prev => prev + 1);
   };
 
   const expandAll = async () => {
@@ -871,6 +868,28 @@ export const TreeView = (props: TreeViewProps) => {
     const nodes = rootNodes();
     if (nodes && nodes.length > 0 && !focusedNode()) {
       setFocusedNode(nodes[0]);
+    }
+  });
+
+  // Handle pending expansions reactively
+  createEffect(() => {
+    const pending = pendingExpansions();
+    if (pending.size > 0) {
+      // Apply pending expansions
+      setExpandedNodes(prev => {
+        const newSet = new Set(prev);
+        pending.forEach((shouldExpand, nodeId) => {
+          if (shouldExpand) {
+            newSet.add(nodeId);
+          } else {
+            newSet.delete(nodeId);
+          }
+        });
+        return newSet;
+      });
+      
+      // Clear pending expansions
+      setPendingExpansions(new Map());
     }
   });
 

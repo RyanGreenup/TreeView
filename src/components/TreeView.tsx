@@ -169,90 +169,50 @@ export const TreeView = (props: TreeViewProps) => {
   };
 
   const refreshParents = (parentIds: string[], options: { forceExpand?: boolean } = {}) => {
-    const uniqueParentIds = [...new Set(parentIds)].filter(id => id); // Remove duplicates and empty strings
     const getParentIdFn = getParentIdMemo();
+    const expanded = expandedNodes();
+    const loaded = loadedChildren();
     
-    // For each parent, check if it's expanded or has children. If not, refresh its parent instead.
-    const finalParentsToRefresh: string[] = [];
-    
-    uniqueParentIds.forEach(parentId => {
-      const wasExpanded = expandedNodes().has(parentId);
-      const hasLoadedChildren = loadedChildren().has(parentId);
-      
-      // If the parent is not expanded and has no loaded children (i.e., it's a leaf node),
-      // we need to refresh its parent instead
-      if (!wasExpanded && !hasLoadedChildren && parentId !== VIRTUAL_ROOT_ID) {
-        const grandparentId = getParentIdFn(parentId);
-        if (grandparentId) {
-          finalParentsToRefresh.push(grandparentId);
-        } else {
-          // If no grandparent, refresh virtual root
-          finalParentsToRefresh.push(VIRTUAL_ROOT_ID);
-        }
-      } else {
-        finalParentsToRefresh.push(parentId);
-      }
-    });
-    
-    // Remove duplicates again after substitution
-    const finalUniqueParents = [...new Set(finalParentsToRefresh)];
-    
-    // Track which parents were expanded before refresh
-    const parentsWereExpanded = new Map<string, boolean>();
-    finalUniqueParents.forEach(parentId => {
-      parentsWereExpanded.set(parentId, expandedNodes().has(parentId));
-    });
+    // Resolve leaf nodes to their parents, deduplicate
+    const parentsToRefresh = [...new Set(
+      parentIds
+        .filter(id => id)
+        .map(id => {
+          // If it's a leaf node (not expanded, no children), use grandparent
+          if (id !== VIRTUAL_ROOT_ID && !expanded.has(id) && !loaded.has(id)) {
+            return getParentIdFn(id) || VIRTUAL_ROOT_ID;
+          }
+          return id;
+        })
+    )];
 
-    // Clear loaded children for all parents
-    setLoadedChildren((prev) => {
+    // Store expansion states, clear children, collapse
+    const wasExpanded = new Map(parentsToRefresh.map(id => [id, expanded.has(id)]));
+    
+    setLoadedChildren(prev => {
       const newMap = new Map(prev);
-      finalUniqueParents.forEach(parentId => {
-        if (parentId !== VIRTUAL_ROOT_ID) {
-          newMap.delete(parentId);
-        }
-      });
+      parentsToRefresh.forEach(id => id !== VIRTUAL_ROOT_ID && newMap.delete(id));
       return newMap;
     });
 
-    // Collapse all parents first to trigger reload
-    setExpandedNodes((prev) => {
+    setExpandedNodes(prev => {
       const newSet = new Set(prev);
-      finalUniqueParents.forEach(parentId => {
-        if (parentId !== VIRTUAL_ROOT_ID) {
-          newSet.delete(parentId);
-        }
-      });
+      parentsToRefresh.forEach(id => id !== VIRTUAL_ROOT_ID && newSet.delete(id));
       return newSet;
     });
 
-    // Queue parents for re-expansion
-    const pendingMap = new Map<string, boolean>();
-    finalUniqueParents.forEach(parentId => {
-      const wasExpanded = parentsWereExpanded.get(parentId);
-      const shouldExpand = options.forceExpand || wasExpanded;
-      
-      if (shouldExpand && parentId !== VIRTUAL_ROOT_ID) {
-        pendingMap.set(parentId, true);
-      }
-    });
+    // Queue re-expansion
+    const toExpand = parentsToRefresh
+      .filter(id => id !== VIRTUAL_ROOT_ID && (options.forceExpand || wasExpanded.get(id)))
+      .map(id => [id, true] as const);
+    
+    if (toExpand.length) setPendingExpansions(new Map(toExpand));
 
-    if (pendingMap.size > 0) {
-      setPendingExpansions(pendingMap);
-    }
-
-    // Handle virtual root refresh if needed
-    if (finalUniqueParents.includes(VIRTUAL_ROOT_ID)) {
-      setLoadedChildren((prev) => {
-        const newMap = new Map(prev);
-        newMap.delete(VIRTUAL_ROOT_ID);
-        return newMap;
-      });
-      others.loadChildren(VIRTUAL_ROOT_ID).then((children) => {
-        setLoadedChildren((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(VIRTUAL_ROOT_ID, children);
-          return newMap;
-        });
+    // Handle virtual root
+    if (parentsToRefresh.includes(VIRTUAL_ROOT_ID)) {
+      setLoadedChildren(prev => { prev.delete(VIRTUAL_ROOT_ID); return new Map(prev); });
+      others.loadChildren(VIRTUAL_ROOT_ID).then(children => {
+        setLoadedChildren(prev => new Map(prev).set(VIRTUAL_ROOT_ID, children));
       });
     }
   };

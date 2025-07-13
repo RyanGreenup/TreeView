@@ -20,7 +20,7 @@ type TreeFocusHandler = (node: TreeNode) => void;
 type TreeExpandHandler = (nodeId: string) => void;
 type TreeChildrenLoader = (nodeId: string) => Promise<TreeNode[]>;
 type TreeChildrenLoadedHandler = (nodeId: string, children: TreeNode[]) => void;
-type TreeCutPasteHandler = (sourceId: string, targetId: string) => void;
+type TreeCutPasteHandler = (sourceId: string, targetId: string) => boolean;
 
 interface TreeContextValue {
   expandedNodes: Accessor<Set<string>>;
@@ -34,6 +34,7 @@ interface TreeContextValue {
   onChildrenLoaded: TreeChildrenLoadedHandler;
   onCut: (nodeId: string) => void;
   onPaste: (targetId: string) => void;
+  onMoveToRoot: (nodeId?: string) => void;
   loadChildren?: TreeChildrenLoader;
 }
 
@@ -73,6 +74,7 @@ export interface TreeViewProps {
     cut: (nodeId: string) => void;
     paste: (targetId: string) => void;
     clearCut: () => void;
+    refreshTree: () => void;
   }) => void;
 }
 
@@ -87,10 +89,7 @@ const TreeItem = (props: TreeItemProps) => {
   const expanded = () => ctx.expandedNodes().has(props.node.id);
 
   const [childrenResource] = createResource(
-    () =>
-      expanded() && props.node.hasChildren
-        ? props.node.id
-        : null,
+    () => (expanded() && props.node.hasChildren ? props.node.id : null),
     async (nodeId) => {
       const children = await (ctx.loadChildren?.(nodeId) ||
         Promise.resolve([]));
@@ -132,13 +131,19 @@ const TreeItem = (props: TreeItemProps) => {
         onContextMenu={(e) => {
           e.preventDefault();
           // Simple context menu - you could enhance this with a proper dropdown
-          const action = prompt("Choose action:\n1. Cut\n2. Paste\n3. Cancel", "3");
-          switch(action) {
+          const action = prompt(
+            "Choose action:\n1. Cut\n2. Paste\n3. Move to Root\n4. Cancel",
+            "4",
+          );
+          switch (action) {
             case "1":
               ctx.onCut(props.node.id);
               break;
             case "2":
               ctx.onPaste(props.node.id);
+              break;
+            case "3":
+              ctx.onMoveToRoot(props.node.id);
               break;
           }
         }}
@@ -181,9 +186,7 @@ const TreeItem = (props: TreeItemProps) => {
               }
             >
               <For each={childrenResource()}>
-                {(child) => (
-                  <TreeItem node={{ ...child, level: level + 1 }} />
-                )}
+                {(child) => <TreeItem node={{ ...child, level: level + 1 }} />}
               </For>
             </Suspense>
           </ul>
@@ -252,23 +255,23 @@ export const TreeView = (props: TreeViewProps) => {
   >(new Map());
   const [foldCycleState, setFoldCycleState] = createSignal<0 | 1 | 2>(0);
   const [cutNodeId, setCutNodeId] = createSignal<string | undefined>(undefined);
-  const [pendingExpansions, setPendingExpansions] = createSignal<Map<string, boolean>>(new Map());
+  const [pendingExpansions, setPendingExpansions] = createSignal<
+    Map<string, boolean>
+  >(new Map());
   let treeRef: HTMLUListElement | undefined;
   let containerRef: HTMLDivElement | undefined;
 
   // Load root children from virtual root
-  const [rootChildren] = createResource(
-    async () => {
-      const children = await props.loadChildren(VIRTUAL_ROOT_ID);
-      return children;
-    }
-  );
+  const [rootChildren] = createResource(async () => {
+    const children = await props.loadChildren(VIRTUAL_ROOT_ID);
+    return children;
+  });
 
   // Store root children in loadedChildren when they load
   createEffect(() => {
     const children = rootChildren();
     if (children) {
-      setLoadedChildren(prev => {
+      setLoadedChildren((prev) => {
         const newMap = new Map(prev);
         newMap.set(VIRTUAL_ROOT_ID, children);
         return newMap;
@@ -279,7 +282,9 @@ export const TreeView = (props: TreeViewProps) => {
   // Memoize expensive tree flattening computation
   const flattenedNodes = createMemo(() => {
     const children = loadedChildren().get(VIRTUAL_ROOT_ID);
-    return children ? flattenTree(children, 0, expandedNodes, loadedChildren) : [];
+    return children
+      ? flattenTree(children, 0, expandedNodes, loadedChildren)
+      : [];
   });
 
   // Memoize accessor functions to prevent creating new functions on every render
@@ -348,21 +353,24 @@ export const TreeView = (props: TreeViewProps) => {
   const handlePaste = (targetId: string) => {
     const cutId = cutNodeId();
     if (cutId && props.onCutPaste) {
-      props.onCutPaste(cutId, targetId);
-      // Refresh data by collapsing and re-expanding parent nodes
-      refreshAfterMove(cutId, targetId);
-      setCutNodeId(undefined);
+      const operationSucceeded = props.onCutPaste(cutId, targetId);
+      if (operationSucceeded) {
+        // Refresh data by collapsing and re-expanding parent nodes
+        refreshAfterMove(cutId, targetId);
+        setCutNodeId(undefined);
+      }
     }
   };
 
-  const handleMoveToRoot = () => {
-    const cutId = cutNodeId();
-    if (cutId && props.onCutPaste) {
-      // Moving to root is just pasting to the virtual root
-      props.onCutPaste(cutId, VIRTUAL_ROOT_ID);
+  const handleMoveToRoot = (nodeId?: string) => {
+    // Use provided nodeId, or fall back to focused node
+    const targetNodeId = nodeId || focusedNode()?.id;
+    
+    if (targetNodeId && props.onCutPaste) {
+      // Move the target node to the virtual root
+      props.onCutPaste(targetNodeId, VIRTUAL_ROOT_ID);
       // Refresh data by collapsing and re-expanding parent nodes
-      refreshAfterMove(cutId, VIRTUAL_ROOT_ID);
-      setCutNodeId(undefined);
+      refreshAfterMove(targetNodeId, VIRTUAL_ROOT_ID);
     }
   };
 
@@ -370,16 +378,44 @@ export const TreeView = (props: TreeViewProps) => {
     setCutNodeId(undefined);
   };
 
+  const refreshTree = () => {
+    // Store current expansion state
+    const currentExpansions = new Set(expandedNodes());
+
+    // Clear all loaded children to force refresh
+    setLoadedChildren(new Map());
+
+    // Reset expanded nodes to just virtual root
+    setExpandedNodes(new Set([VIRTUAL_ROOT_ID]));
+
+    // Re-load virtual root children
+    props.loadChildren(VIRTUAL_ROOT_ID).then((children) => {
+      setLoadedChildren((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(VIRTUAL_ROOT_ID, children);
+        return newMap;
+      });
+
+      // Try to restore previous expansion state
+      const nodesToRestore = Array.from(currentExpansions).filter(
+        (id) => id !== VIRTUAL_ROOT_ID,
+      );
+      if (nodesToRestore.length > 0) {
+        setPendingExpansions(new Map(nodesToRestore.map((id) => [id, true])));
+      }
+    });
+  };
+
   const getParentId = (nodeId: string): string | null => {
     const loaded = loadedChildren();
-    
+
     // Check all loaded children maps to find the parent
     for (const [parentId, children] of loaded.entries()) {
-      if (children.some(child => child.id === nodeId)) {
+      if (children.some((child) => child.id === nodeId)) {
         return parentId;
       }
     }
-    
+
     return null;
   };
 
@@ -389,19 +425,22 @@ export const TreeView = (props: TreeViewProps) => {
     const targetParentId = targetId;
 
     // Store expansion states
-    const sourceParentWasExpanded = sourceParentId ? expandedNodes().has(sourceParentId) : false;
+    const sourceParentWasExpanded = sourceParentId
+      ? expandedNodes().has(sourceParentId)
+      : false;
     const targetParentWasExpanded = expandedNodes().has(targetParentId);
 
     // Collapse both parents to force data refresh
-    setExpandedNodes(prev => {
+    setExpandedNodes((prev) => {
       const newSet = new Set(prev);
-      if (sourceParentId && sourceParentId !== VIRTUAL_ROOT_ID) newSet.delete(sourceParentId);
+      if (sourceParentId && sourceParentId !== VIRTUAL_ROOT_ID)
+        newSet.delete(sourceParentId);
       if (targetParentId !== VIRTUAL_ROOT_ID) newSet.delete(targetParentId);
       return newSet;
     });
 
     // Clear loaded children for both parents
-    setLoadedChildren(prev => {
+    setLoadedChildren((prev) => {
       const newMap = new Map(prev);
       if (sourceParentId) newMap.delete(sourceParentId);
       if (targetParentId !== VIRTUAL_ROOT_ID) newMap.delete(targetParentId);
@@ -410,7 +449,11 @@ export const TreeView = (props: TreeViewProps) => {
 
     // Schedule re-expansion using reactive pending expansions
     const newPending = new Map<string, boolean>();
-    if (sourceParentWasExpanded && sourceParentId && sourceParentId !== VIRTUAL_ROOT_ID) {
+    if (
+      sourceParentWasExpanded &&
+      sourceParentId &&
+      sourceParentId !== VIRTUAL_ROOT_ID
+    ) {
       newPending.set(sourceParentId, true);
     }
     if (targetParentWasExpanded && targetParentId !== VIRTUAL_ROOT_ID) {
@@ -421,16 +464,19 @@ export const TreeView = (props: TreeViewProps) => {
     }
 
     // If moving to/from virtual root, refresh root children
-    if (sourceParentId === VIRTUAL_ROOT_ID || targetParentId === VIRTUAL_ROOT_ID) {
+    if (
+      sourceParentId === VIRTUAL_ROOT_ID ||
+      targetParentId === VIRTUAL_ROOT_ID
+    ) {
       // Trigger refresh of virtual root children
-      setLoadedChildren(prev => {
+      setLoadedChildren((prev) => {
         const newMap = new Map(prev);
         newMap.delete(VIRTUAL_ROOT_ID);
         return newMap;
       });
       // Re-load virtual root children
-      props.loadChildren(VIRTUAL_ROOT_ID).then(children => {
-        setLoadedChildren(prev => {
+      props.loadChildren(VIRTUAL_ROOT_ID).then((children) => {
+        setLoadedChildren((prev) => {
           const newMap = new Map(prev);
           newMap.set(VIRTUAL_ROOT_ID, children);
           return newMap;
@@ -439,19 +485,18 @@ export const TreeView = (props: TreeViewProps) => {
     }
   };
 
-
   const expandAll = async () => {
     const expandLevel = async (nodes: TreeNode[]) => {
-      const nodesToExpand = nodes.filter(node => node.hasChildren);
-      
+      const nodesToExpand = nodes.filter((node) => node.hasChildren);
+
       if (nodesToExpand.length === 0) {
         return;
       }
 
       // First, expand all nodes at this level immediately
-      setExpandedNodes(prev => {
+      setExpandedNodes((prev) => {
         const newSet = new Set(prev);
-        nodesToExpand.forEach(node => newSet.add(node.id));
+        nodesToExpand.forEach((node) => newSet.add(node.id));
         return newSet;
       });
 
@@ -476,10 +521,10 @@ export const TreeView = (props: TreeViewProps) => {
 
       // Wait for all children at this level to load
       const allChildrenArrays = await Promise.all(childrenLoadPromises);
-      
+
       // Flatten all children for the next level
       const nextLevelNodes = allChildrenArrays.flat();
-      
+
       // Recursively expand the next level
       if (nextLevelNodes.length > 0) {
         await expandLevel(nextLevelNodes);
@@ -498,18 +543,21 @@ export const TreeView = (props: TreeViewProps) => {
 
   const getPathToNode = (nodeId: string): string[] | null => {
     const loaded = loadedChildren();
-    
-    const findPath = (targetId: string, currentPath: string[] = []): string[] | null => {
+
+    const findPath = (
+      targetId: string,
+      currentPath: string[] = [],
+    ): string[] | null => {
       // Check each parent's children
       for (const [parentId, children] of loaded.entries()) {
         for (const child of children) {
           const pathToChild = [...currentPath, parentId, child.id];
-          
+
           if (child.id === targetId) {
             // Filter out virtual root from the path
-            return pathToChild.filter(id => id !== VIRTUAL_ROOT_ID);
+            return pathToChild.filter((id) => id !== VIRTUAL_ROOT_ID);
           }
-          
+
           // Recursively search in child's children if they exist
           const childrenOfChild = loaded.get(child.id);
           if (childrenOfChild) {
@@ -520,7 +568,7 @@ export const TreeView = (props: TreeViewProps) => {
       }
       return null;
     };
-    
+
     return findPath(nodeId);
   };
 
@@ -810,6 +858,14 @@ export const TreeView = (props: TreeViewProps) => {
         e.preventDefault();
         clearCut();
         break;
+
+      case "r":
+      case "R":
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+          e.preventDefault();
+          handleMoveToRoot();
+        }
+        break;
     }
   };
 
@@ -826,6 +882,7 @@ export const TreeView = (props: TreeViewProps) => {
       cut: handleCut,
       paste: handlePaste,
       clearCut,
+      refreshTree,
     });
   });
 
@@ -842,7 +899,7 @@ export const TreeView = (props: TreeViewProps) => {
     const pending = pendingExpansions();
     if (pending.size > 0) {
       // Apply pending expansions
-      setExpandedNodes(prev => {
+      setExpandedNodes((prev) => {
         const newSet = new Set(prev);
         pending.forEach((shouldExpand, nodeId) => {
           if (shouldExpand) {
@@ -853,7 +910,7 @@ export const TreeView = (props: TreeViewProps) => {
         });
         return newSet;
       });
-      
+
       // Clear pending expansions
       setPendingExpansions(new Map());
     }
@@ -872,6 +929,7 @@ export const TreeView = (props: TreeViewProps) => {
     onChildrenLoaded: handleChildrenLoaded,
     onCut: handleCut,
     onPaste: handlePaste,
+    onMoveToRoot: handleMoveToRoot,
     loadChildren: props.loadChildren,
   };
 

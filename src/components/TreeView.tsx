@@ -262,6 +262,22 @@ export const TreeView = (props: TreeViewProps) => {
     setFlattenedNodes(flattenTree(props.nodes));
   });
 
+  // Reactive effect to scroll focused item into view
+  createEffect(() => {
+    const focused = focusedNode();
+    if (!focused || !treeRef || !containerRef) return;
+
+    // Use queueMicrotask for better timing than requestAnimationFrame
+    queueMicrotask(() => {
+      const focusedElement = treeRef?.querySelector(
+        `a[data-node-id="${focused.id}"]`,
+      ) as HTMLElement;
+      if (focusedElement) {
+        scrollIntoViewIfNeeded(focusedElement, containerRef!);
+      }
+    });
+  });
+
   const handleSelect = (node: TreeNode) => {
     setSelectedNode(node);
     props.onSelect?.(node);
@@ -270,16 +286,6 @@ export const TreeView = (props: TreeViewProps) => {
   const handleFocus = (node: TreeNode) => {
     setFocusedNode(node);
     props.onFocus?.(node);
-
-    // Scroll the focused item into view
-    requestAnimationFrame(() => {
-      const focusedElement = treeRef?.querySelector(
-        `a[data-node-id="${node.id}"]`,
-      ) as HTMLElement;
-      if (focusedElement && containerRef) {
-        scrollIntoViewIfNeeded(focusedElement, containerRef);
-      }
-    });
   };
 
   const handleExpand = (nodeId: string) => {
@@ -397,15 +403,7 @@ export const TreeView = (props: TreeViewProps) => {
   onMount(() => {
     if (props.nodes.length > 0) {
       setFocusedNode(props.nodes[0]);
-      // Ensure the first item is visible
-      requestAnimationFrame(() => {
-        const firstElement = treeRef?.querySelector(
-          "a[data-node-id]",
-        ) as HTMLElement;
-        if (firstElement && containerRef) {
-          scrollIntoViewIfNeeded(firstElement, containerRef);
-        }
-      });
+      // The reactive effect will handle scrolling
     }
   });
 

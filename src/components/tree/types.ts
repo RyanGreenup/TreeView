@@ -6,6 +6,7 @@ export interface TreeNode {
   hasChildren?: boolean;
   isExpanded?: boolean;
   level: number;
+  type?: "folder" | "note";
 }
 
 export type TreeSelectHandler = (node: TreeNode) => void;

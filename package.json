@@ -9,11 +9,14 @@
   "dependencies": {
     "@solidjs/router": "^0.15.0",
     "@solidjs/start": "^1.1.0",
+    "better-sqlite3": "^12.2.0",
     "solid-js": "^1.9.5",
+    "solid-transition-group": "^0.3.0",
     "vinxi": "^0.5.7"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.7",
+    "@types/better-sqlite3": "^7.6.13",
     "daisyui": "^5.0.46",
     "tailwindcss": "^4.0.7"
   },

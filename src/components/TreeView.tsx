@@ -33,9 +33,9 @@ export interface TreeItemProps {
   onFocus?: (node: TreeNode) => void;
   onExpand?: (nodeId: string) => void;
   loadChildren?: (nodeId: string) => Promise<TreeNode[]>;
-  isSelected?: boolean;
-  isFocused?: boolean;
   expandedNodes?: Set<string>;
+  focusedNodeId?: string;
+  selectedNodeId?: string;
 }
 
 const TreeItem = (props: TreeItemProps) => {
@@ -60,14 +60,17 @@ const TreeItem = (props: TreeItemProps) => {
   };
 
   const level = props.node.level || 0;
+  const isSelected = () => props.selectedNodeId === props.node.id;
+  const isFocused = () => props.focusedNodeId === props.node.id;
 
   return (
     <>
       <div
         class={`
-          flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-base-300
-          ${props.isSelected ? 'bg-primary text-primary-content' : ''}
-          ${props.isFocused ? 'ring-2 ring-primary ring-offset-1' : ''}
+          flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-all duration-200
+          ${isSelected() ? 'bg-primary text-primary-content shadow-sm' : 'hover:bg-base-200'}
+          ${isFocused() ? 'ring-2 ring-primary ring-offset-2 ring-offset-base-100' : ''}
+          ${isSelected() && isFocused() ? 'ring-2 ring-primary-content ring-offset-2 ring-offset-primary' : ''}
         `}
         style={{ "margin-left": `${level * 1.5}rem` }}
         onClick={handleClick}
@@ -75,13 +78,18 @@ const TreeItem = (props: TreeItemProps) => {
         role="treeitem"
         aria-expanded={expanded()}
         aria-level={level + 1}
+        aria-selected={isSelected()}
       >
         <Show 
           when={props.node.hasChildren}
           fallback={<div class="w-4 h-4"></div>}
         >
           <button
-            class="btn btn-ghost btn-xs btn-square flex-shrink-0"
+            class={`
+              btn btn-ghost btn-xs btn-square flex-shrink-0 
+              ${isSelected() ? 'btn-primary' : ''} 
+              hover:btn-primary focus:btn-primary
+            `}
             onClick={(e) => {
               e.stopPropagation();
               handleToggle();
@@ -90,7 +98,7 @@ const TreeItem = (props: TreeItemProps) => {
             aria-label={expanded() ? "Collapse" : "Expand"}
           >
             <svg
-              class={`w-3 h-3 transition-transform ${expanded() ? 'rotate-90' : ''}`}
+              class={`w-3 h-3 transition-transform duration-200 ${expanded() ? 'rotate-90' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -126,9 +134,9 @@ const TreeItem = (props: TreeItemProps) => {
                       onFocus={props.onFocus}
                       onExpand={props.onExpand}
                       loadChildren={props.loadChildren}
-                      isSelected={props.isSelected}
-                      isFocused={props.isFocused}
                       expandedNodes={props.expandedNodes}
+                      focusedNodeId={props.focusedNodeId}
+                      selectedNodeId={props.selectedNodeId}
                     />
                   )}
                 </For>
@@ -143,9 +151,9 @@ const TreeItem = (props: TreeItemProps) => {
                   onFocus={props.onFocus}
                   onExpand={props.onExpand}
                   loadChildren={props.loadChildren}
-                  isSelected={props.isSelected}
-                  isFocused={props.isFocused}
                   expandedNodes={props.expandedNodes}
+                  focusedNodeId={props.focusedNodeId}
+                  selectedNodeId={props.selectedNodeId}
                 />
               )}
             </For>
@@ -306,9 +314,9 @@ export const TreeView = (props: TreeViewProps) => {
             onFocus={handleFocus}
             onExpand={handleExpand}
             loadChildren={props.loadChildren}
-            isSelected={selectedNode()?.id === node.id}
-            isFocused={focusedNode()?.id === node.id}
             expandedNodes={expandedNodes()}
+            focusedNodeId={focusedNode()?.id}
+            selectedNodeId={selectedNode()?.id}
           />
         )}
       </For>

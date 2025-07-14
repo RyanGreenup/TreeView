@@ -146,13 +146,33 @@ export const TreeView = (props: TreeViewProps) => {
       try {
         const operationSucceeded = await others.onCutPaste(cutId, targetId);
         if (operationSucceeded) {
-          // Get the source parent using the parent lookup function
+          // Get the source parent for cleanup
           const getParentIdFn = getParentIdMemo();
           const sourceParentId = getParentIdFn(cutId);
-          const parentsToRefresh = [sourceParentId, targetId].filter(
-            (id) => id,
-          ) as string[];
-          refreshParents(parentsToRefresh);
+          
+          // Ensure target parent is expanded
+          setExpandedNodes((prev) => new Set([...prev, targetId]));
+          
+          // Refresh target parent's children
+          const targetChildren = await others.loadChildren(targetId);
+          setLoadedChildren((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(targetId, targetChildren);
+            return newMap;
+          });
+
+          // Refresh source parent's children if different
+          if (sourceParentId && sourceParentId !== targetId) {
+            const sourceChildren = await others.loadChildren(sourceParentId);
+            setLoadedChildren((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(sourceParentId, sourceChildren);
+              return newMap;
+            });
+          }
+
+          // Focus the moved item
+          setPendingFocusNodeId(cutId);
           setCutNodeId(undefined);
         }
       } catch (error) {
@@ -171,13 +191,30 @@ export const TreeView = (props: TreeViewProps) => {
           VIRTUAL_ROOT_ID,
         );
         if (operationSucceeded) {
-          // Get the source parent for the node being moved to root
+          // Get the source parent for cleanup
           const getParentIdFn = getParentIdMemo();
           const sourceParentId = getParentIdFn(targetNodeId);
-          const parentsToRefresh = [sourceParentId, VIRTUAL_ROOT_ID].filter(
-            (id) => id,
-          ) as string[];
-          refreshParents(parentsToRefresh);
+          
+          // Refresh root children
+          const rootChildren = await others.loadChildren(VIRTUAL_ROOT_ID);
+          setLoadedChildren((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(VIRTUAL_ROOT_ID, rootChildren);
+            return newMap;
+          });
+
+          // Refresh source parent's children if different
+          if (sourceParentId && sourceParentId !== VIRTUAL_ROOT_ID) {
+            const sourceChildren = await others.loadChildren(sourceParentId);
+            setLoadedChildren((prev) => {
+              const newMap = new Map(prev);
+              newMap.set(sourceParentId, sourceChildren);
+              return newMap;
+            });
+          }
+
+          // Focus the moved item
+          setPendingFocusNodeId(targetNodeId);
         }
       } catch (error) {
         console.warn("Move to root operation failed:", error);
@@ -269,9 +306,18 @@ export const TreeView = (props: TreeViewProps) => {
       try {
         const newItemId = await others.onCreate(targetParentId);
         if (newItemId) {
-          // Refresh the parent and force it to expand to show the new item
-          refreshParents([targetParentId], { forceExpand: true });
-          // Queue the new item for focusing after the parent refreshes
+          // Ensure parent is expanded
+          setExpandedNodes((prev) => new Set([...prev, targetParentId]));
+          
+          // Load/refresh the parent's children
+          const children = await others.loadChildren(targetParentId);
+          setLoadedChildren((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(targetParentId, children);
+            return newMap;
+          });
+
+          // Focus the new item
           setPendingFocusNodeId(newItemId);
         }
       } catch (error) {

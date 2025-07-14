@@ -142,83 +142,57 @@ export const TreeView = (props: TreeViewProps) => {
 
   const handlePaste = async (targetId: string) => {
     const cutId = cutNodeId();
-    if (cutId && others.onCutPaste) {
-      try {
-        const operationSucceeded = await others.onCutPaste(cutId, targetId);
-        if (operationSucceeded) {
-          // Get the source parent for cleanup
-          const getParentIdFn = getParentIdMemo();
-          const sourceParentId = getParentIdFn(cutId);
-          
-          // Ensure target parent is expanded
-          setExpandedNodes((prev) => new Set([...prev, targetId]));
-          
-          // Refresh target parent's children
-          const targetChildren = await others.loadChildren(targetId);
-          setLoadedChildren((prev) => {
-            const newMap = new Map(prev);
-            newMap.set(targetId, targetChildren);
-            return newMap;
-          });
+    if (!cutId || !others.onCutPaste) return;
 
-          // Refresh source parent's children if different
-          if (sourceParentId && sourceParentId !== targetId) {
-            const sourceChildren = await others.loadChildren(sourceParentId);
-            setLoadedChildren((prev) => {
-              const newMap = new Map(prev);
-              newMap.set(sourceParentId, sourceChildren);
-              return newMap;
-            });
-          }
+    try {
+      const operationSucceeded = await others.onCutPaste(cutId, targetId);
+      if (operationSucceeded) {
+        const getParentIdFn = getParentIdMemo();
+        const sourceParentId = getParentIdFn(cutId);
 
-          // Focus the moved item
-          setPendingFocusNodeId(cutId);
-          setCutNodeId(undefined);
+        // Refresh target parent (expand and focus moved item)
+        await refreshParentChildren(targetId, {
+          expand: true,
+          focusChild: cutId,
+        });
+
+        // Refresh source parent if different
+        if (sourceParentId && sourceParentId !== targetId) {
+          await refreshParentChildren(sourceParentId);
         }
-      } catch (error) {
-        console.warn("Cut/paste operation failed:", error);
+
+        setCutNodeId(undefined);
       }
+    } catch (error) {
+      console.warn("Cut/paste operation failed:", error);
     }
   };
 
   const handleMoveToRoot = async (nodeId?: string) => {
     const targetNodeId = nodeId || focusedNode()?.id;
+    if (!targetNodeId || !others.onCutPaste) return;
 
-    if (targetNodeId && others.onCutPaste) {
-      try {
-        const operationSucceeded = await others.onCutPaste(
-          targetNodeId,
-          VIRTUAL_ROOT_ID,
-        );
-        if (operationSucceeded) {
-          // Get the source parent for cleanup
-          const getParentIdFn = getParentIdMemo();
-          const sourceParentId = getParentIdFn(targetNodeId);
-          
-          // Refresh root children
-          const rootChildren = await others.loadChildren(VIRTUAL_ROOT_ID);
-          setLoadedChildren((prev) => {
-            const newMap = new Map(prev);
-            newMap.set(VIRTUAL_ROOT_ID, rootChildren);
-            return newMap;
-          });
+    try {
+      const operationSucceeded = await others.onCutPaste(
+        targetNodeId,
+        VIRTUAL_ROOT_ID,
+      );
+      if (operationSucceeded) {
+        const getParentIdFn = getParentIdMemo();
+        const sourceParentId = getParentIdFn(targetNodeId);
 
-          // Refresh source parent's children if different
-          if (sourceParentId && sourceParentId !== VIRTUAL_ROOT_ID) {
-            const sourceChildren = await others.loadChildren(sourceParentId);
-            setLoadedChildren((prev) => {
-              const newMap = new Map(prev);
-              newMap.set(sourceParentId, sourceChildren);
-              return newMap;
-            });
-          }
+        // Refresh root (focus moved item)
+        await refreshParentChildren(VIRTUAL_ROOT_ID, {
+          focusChild: targetNodeId,
+        });
 
-          // Focus the moved item
-          setPendingFocusNodeId(targetNodeId);
+        // Refresh source parent if different
+        if (sourceParentId && sourceParentId !== VIRTUAL_ROOT_ID) {
+          await refreshParentChildren(sourceParentId);
         }
-      } catch (error) {
-        console.warn("Move to root operation failed:", error);
       }
+    } catch (error) {
+      console.warn("Move to root operation failed:", error);
     }
   };
 
@@ -299,124 +273,109 @@ export const TreeView = (props: TreeViewProps) => {
     }
   };
 
+  // Helper to refresh parent children and optionally expand/focus
+  const refreshParentChildren = async (
+    parentId: string,
+    options: { expand?: boolean; focusChild?: string } = {},
+  ) => {
+    try {
+      if (options.expand) {
+        setExpandedNodes((prev) => new Set([...prev, parentId]));
+      }
+
+      const children = await others.loadChildren(parentId);
+      setLoadedChildren((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(parentId, children);
+        return newMap;
+      });
+
+      if (options.focusChild) {
+        setPendingFocusNodeId(options.focusChild);
+      }
+    } catch (error) {
+      console.warn(`Failed to refresh parent ${parentId}:`, error);
+    }
+  };
+
   const handleCreateNew = async (parentId?: string) => {
     const targetParentId = parentId || focusedNode()?.id || VIRTUAL_ROOT_ID;
+    if (!others.onCreate) return;
 
-    if (others.onCreate) {
-      try {
-        const newItemId = await others.onCreate(targetParentId);
-        if (newItemId) {
-          // Ensure parent is expanded
-          setExpandedNodes((prev) => new Set([...prev, targetParentId]));
-          
-          // Load/refresh the parent's children
-          const children = await others.loadChildren(targetParentId);
-          setLoadedChildren((prev) => {
-            const newMap = new Map(prev);
-            newMap.set(targetParentId, children);
-            return newMap;
-          });
-
-          // Focus the new item
-          setPendingFocusNodeId(newItemId);
-        }
-      } catch (error) {
-        console.warn("Create operation failed:", error);
+    try {
+      const newItemId = await others.onCreate(targetParentId);
+      if (newItemId) {
+        await refreshParentChildren(targetParentId, {
+          expand: true,
+          focusChild: newItemId,
+        });
       }
+    } catch (error) {
+      console.warn("Create operation failed:", error);
     }
   };
 
   const handleDelete = async (nodeId?: string) => {
     const targetNodeId = nodeId || focusedNode()?.id;
+    if (!targetNodeId || !others.onDelete) return;
 
-    if (targetNodeId && others.onDelete) {
-      try {
-        const success = await others.onDelete(targetNodeId);
-        if (success) {
-          // Get the parent ID for refresh
-          const getParentIdFn = getParentIdMemo();
-          const parentId = getParentIdFn(targetNodeId) || VIRTUAL_ROOT_ID;
+    try {
+      const success = await others.onDelete(targetNodeId);
+      if (success) {
+        const getParentIdFn = getParentIdMemo();
+        const parentId = getParentIdFn(targetNodeId) || VIRTUAL_ROOT_ID;
 
-          // Clear focus/selection if they were on the deleted node
-          if (focusedNode()?.id === targetNodeId) {
-            setFocusedNode(null);
-          }
-          if (selectedNode()?.id === targetNodeId) {
-            setSelectedNode(null);
-          }
+        // Clear states if they were on the deleted node
+        if (focusedNode()?.id === targetNodeId) setFocusedNode(null);
+        if (selectedNode()?.id === targetNodeId) setSelectedNode(null);
+        if (cutNodeId() === targetNodeId) setCutNodeId(undefined);
 
-          // Clear cut if the deleted node was cut
-          if (cutNodeId() === targetNodeId) {
-            setCutNodeId(undefined);
-          }
-
-          // Refresh the parent to remove the deleted node from view
-          refreshParents([parentId]);
-        }
-      } catch (error) {
-        console.warn("Delete operation failed:", error);
+        refreshParents([parentId]);
       }
+    } catch (error) {
+      console.warn("Delete operation failed:", error);
     }
   };
 
   const handleRename = (nodeId?: string) => {
     const targetNodeId = nodeId || focusedNode()?.id;
-    if (targetNodeId) {
-      setEditingNodeId(targetNodeId);
-    }
+    if (targetNodeId) setEditingNodeId(targetNodeId);
   };
 
   const handleRenameCommit = async (nodeId: string, newLabel: string) => {
-    if (others.onRename) {
-      try {
-        const success = await others.onRename(nodeId, newLabel);
-        if (success) {
-          setEditingNodeId(undefined);
-          if (REFRESH_TREE_AFTER_RENAME) {
-            refreshTree();
-          } else {
-            // Update the node label in place without full refresh
-            updateNodeLabelInPlace(nodeId, newLabel);
-          }
+    if (!others.onRename) return;
+
+    try {
+      const success = await others.onRename(nodeId, newLabel);
+      if (success) {
+        setEditingNodeId(undefined);
+        if (REFRESH_TREE_AFTER_RENAME) {
+          refreshTree();
+        } else {
+          updateNodeLabelInPlace(nodeId, newLabel);
         }
-      } catch (error) {
-        console.warn("Rename operation failed:", error);
       }
+    } catch (error) {
+      console.warn("Rename operation failed:", error);
     }
   };
 
-  const handleRenameCancel = () => {
-    setEditingNodeId(undefined);
-  };
+  const handleRenameCancel = () => setEditingNodeId(undefined);
 
   const updateNodeLabelInPlace = (nodeId: string, newLabel: string) => {
-    // Find the DOM element and update its text directly
     const nodeElement = treeRef?.querySelector(
       `a[data-node-id="${nodeId}"] span`,
     );
-    if (nodeElement) {
-      nodeElement.textContent = newLabel;
-    }
+    if (nodeElement) nodeElement.textContent = newLabel;
   };
 
   const refreshTree = () => {
-    // Store current expansion state
     const currentExpansions = new Set(expandedNodes());
-
-    // Clear all loaded children to force refresh
     setLoadedChildren(new Map());
-
-    // Reset expanded nodes to just virtual root
     setExpandedNodes(new Set([VIRTUAL_ROOT_ID]));
 
-    // Re-load virtual root children
     others.loadChildren(VIRTUAL_ROOT_ID).then((children) => {
-      setLoadedChildren((prev) => {
-        const newMap = new Map(prev);
-        newMap.set(VIRTUAL_ROOT_ID, children);
-        return newMap;
-      });
-
+      setLoadedChildren((prev) => new Map(prev).set(VIRTUAL_ROOT_ID, children));
       const nodesToRestore = Array.from(currentExpansions).filter(
         (id) => id !== VIRTUAL_ROOT_ID,
       );
@@ -434,28 +393,19 @@ export const TreeView = (props: TreeViewProps) => {
   const expandAll = async () => {
     const expandLevel = async (nodes: TreeNode[]) => {
       const nodesToExpand = nodes.filter((node) => node.hasChildren);
+      if (nodesToExpand.length === 0) return;
 
-      if (nodesToExpand.length === 0) {
-        return;
-      }
-
-      // First, expand all nodes at this level immediately
       setExpandedNodes((prev) => {
         const newSet = new Set(prev);
         nodesToExpand.forEach((node) => newSet.add(node.id));
         return newSet;
       });
 
-      // Then load children for each node at this level
       const childrenLoadPromises = nodesToExpand.map(async (node) => {
         try {
           const children = await others.loadChildren(node.id);
-          if (children && children.length > 0) {
-            setLoadedChildren((prev) => {
-              const newMap = new Map(prev);
-              newMap.set(node.id, children);
-              return newMap;
-            });
+          if (children?.length > 0) {
+            setLoadedChildren((prev) => new Map(prev).set(node.id, children));
             return children;
           }
         } catch (error) {
@@ -464,27 +414,18 @@ export const TreeView = (props: TreeViewProps) => {
         return [];
       });
 
-      // Wait for all children at this level to load
       const allChildrenArrays = await Promise.all(childrenLoadPromises);
-
-      // Flatten all children for the next level
       const nextLevelNodes = allChildrenArrays.flat();
-
-      // Recursively expand the next level
       if (nextLevelNodes.length > 0) {
         await expandLevel(nextLevelNodes);
       }
     };
 
     const rootNodes = loadedChildren().get(VIRTUAL_ROOT_ID);
-    if (rootNodes) {
-      await expandLevel(rootNodes);
-    }
+    if (rootNodes) await expandLevel(rootNodes);
   };
 
-  const collapseAll = () => {
-    setExpandedNodes(new Set([VIRTUAL_ROOT_ID])); // Keep virtual root expanded
-  };
+  const collapseAll = () => setExpandedNodes(new Set([VIRTUAL_ROOT_ID]));
 
   const getPathToNodeMemo = createMemo(() => {
     const loaded = loadedChildren();
@@ -507,13 +448,8 @@ export const TreeView = (props: TreeViewProps) => {
     }
   };
 
-  const collapseAllExceptFocused = () => {
-    collapseAllExceptNode(focusedNode());
-  };
-
-  const collapseAllExceptSelected = () => {
-    collapseAllExceptNode(selectedNode());
-  };
+  const collapseAllExceptFocused = () => collapseAllExceptNode(focusedNode());
+  const collapseAllExceptSelected = () => collapseAllExceptNode(selectedNode());
 
   const collapseSome = () => {
     const focused = focusedNode();
@@ -525,7 +461,6 @@ export const TreeView = (props: TreeViewProps) => {
     }
 
     const pathsToKeep = new Set<string>([VIRTUAL_ROOT_ID]);
-
     const getPathFn = getPathToNodeMemo();
 
     if (focused) {
@@ -549,32 +484,20 @@ export const TreeView = (props: TreeViewProps) => {
     const currentState = foldCycleState();
 
     switch (currentState) {
-      case 0: // Currently collapsed, go to "unfold to items with children only"
-        const getTopLevelParentIds = (nodes: TreeNode[]): string[] => {
-          const ids: string[] = [];
-
-          for (const node of nodes) {
-            if (node.hasChildren) {
-              ids.push(node.id);
-            }
-          }
-
-          return ids;
-        };
-
+      case 0:
         const rootNodes = loadedChildren().get(VIRTUAL_ROOT_ID);
         if (!rootNodes) return;
-        const topLevelParentIds = getTopLevelParentIds(rootNodes);
+        const topLevelParentIds = rootNodes
+          .filter((node) => node.hasChildren)
+          .map((node) => node.id);
         setExpandedNodes(new Set([VIRTUAL_ROOT_ID, ...topLevelParentIds]));
         setFoldCycleState(1);
         break;
-
-      case 1: // Currently showing top-level parents, go to "unfold all"
+      case 1:
         expandAll();
         setFoldCycleState(2);
         break;
-
-      case 2: // Currently expanded all, go back to collapsed
+      case 2:
         collapseAll();
         setFoldCycleState(0);
         break;
@@ -584,38 +507,24 @@ export const TreeView = (props: TreeViewProps) => {
   const focusAndReveal = async (nodeId: string) => {
     let targetNode = findNodeInChildren(nodeId, loadedChildren());
 
-    // If not found, we need to progressively expand and load children
     if (!targetNode) {
       const expandAndSearch = async (
         currentNodes: TreeNode[],
         targetId: string,
       ): Promise<TreeNode | null> => {
         for (const node of currentNodes) {
-          // Check if target could be a descendant by checking if targetId starts with node.id
           if (targetId.startsWith(node.id + "-") || targetId === node.id) {
-            // If this is the target node
-            if (node.id === targetId) {
-              return node;
-            }
+            if (node.id === targetId) return node;
 
-            // If this node has children, search them
             if (node.hasChildren) {
-              // Expand this node first
               setExpandedNodes((prev) => new Set([...prev, node.id]));
-
               try {
                 const dynamicChildren = await others.loadChildren(node.id);
-                if (dynamicChildren && dynamicChildren.length > 0) {
-                  setLoadedChildren((prev) => {
-                    const newMap = new Map(prev);
-                    newMap.set(node.id, dynamicChildren);
-                    return newMap;
-                  });
-
-                  const found = await expandAndSearch(
-                    dynamicChildren,
-                    targetId,
+                if (dynamicChildren?.length > 0) {
+                  setLoadedChildren((prev) =>
+                    new Map(prev).set(node.id, dynamicChildren),
                   );
+                  const found = await expandAndSearch(dynamicChildren, targetId);
                   if (found) return found;
                 }
               } catch (error) {
@@ -651,7 +560,6 @@ export const TreeView = (props: TreeViewProps) => {
         parentsToExpand.forEach((id) => newSet.add(id));
         return newSet;
       });
-
       handleFocus(targetNode);
     }
   };

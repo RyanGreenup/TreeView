@@ -11,6 +11,7 @@ import { TreeItemProps } from "./types";
 import { useTreeContext } from "./context";
 import { ANIMATION_CLASSES } from "./constants";
 import { LoadingTreeItem } from "./LoadingTreeItem";
+import { createUnifiedContextMenuHandlers } from "./device-utils";
 
 const ExpandCollapseIcon = (props: { expanded: boolean; class?: string }) => (
   <svg
@@ -78,10 +79,17 @@ export const TreeItem = (props: TreeItemProps) => {
     ctx.onSelect(props.node);
   };
 
-  const handleContextMenu = (e: MouseEvent) => {
-    e.preventDefault();
-    ctx.onContextMenu?.(props.node, e);
-  };
+  // iOS Context Menu Workaround: Create unified handlers for both desktop and iOS
+  // On desktop: Uses standard right-click context menu
+  // On iOS: Uses long-press gesture (500ms) to trigger context menu
+  const contextMenuHandlers = createUnifiedContextMenuHandlers(
+    (event: MouseEvent | TouchEvent) => {
+      if (event instanceof MouseEvent) {
+        event.preventDefault();
+      }
+      ctx.onContextMenu?.(props.node, event as MouseEvent);
+    }
+  );
 
   const handleExpandClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -142,7 +150,7 @@ export const TreeItem = (props: TreeItemProps) => {
           "opacity-50 bg-warning text-warning-content": isCut(),
         }}
         onClick={handleClick}
-        onContextMenu={handleContextMenu}
+        {...contextMenuHandlers}
         data-node-id={props.node.id}
         role="treeitem"
         aria-expanded={expanded()}

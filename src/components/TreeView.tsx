@@ -21,12 +21,18 @@ export const TreeView = (props: TreeViewProps) => {
 
   // Initialize hooks
   const state = useTreeState(others);
-  const operations = useTreeOperations(state, others, { get treeRef() { return treeRef; } });
+  const operations = useTreeOperations(state, others, {
+    get treeRef() {
+      return treeRef;
+    },
+  });
   const { handleKeyDown } = useTreeKeyboard(state, operations);
 
   // Setup effects (Auto Scrolling Etc.)
-  useTreeEffects(state, operations, { 
-    get treeRef() { return treeRef; }
+  useTreeEffects(state, operations, {
+    get treeRef() {
+      return treeRef;
+    },
   });
 
   // Expose the TreeView's API to the parent component via the ref prop

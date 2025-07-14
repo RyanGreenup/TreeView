@@ -259,7 +259,9 @@ export default function TreeExampleSQLite() {
       label: "Schema",
       content: (
         <div class="space-x-1">
-          <div class="badge badge-outline badge-sm">notes (id, label, parent_id)</div>
+          <div class="badge badge-outline badge-sm">
+            notes (id, label, parent_id)
+          </div>
         </div>
       ),
     },

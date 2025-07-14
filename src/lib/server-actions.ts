@@ -5,6 +5,18 @@ import type { TreeNode } from "~/components/tree/types";
 
 let db: Database.Database | null = null;
 
+/*
+If the sqlite database is ../../notes.sqlite the schema will be:
+
+```sql
+CREATE TABLE notes (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        parent_id TEXT,
+        FOREIGN KEY (parent_id) REFERENCES notes (id)
+    );
+```
+*/
 // Initialize the database connection
 function getDb(): Database.Database {
   if (!db) {
@@ -12,7 +24,7 @@ function getDb(): Database.Database {
     if (!dbPath) {
       throw new Error("DB_PATH environment variable is not set");
     }
-    
+
     db = new Database(dbPath);
   }
   return db;
@@ -28,25 +40,25 @@ function hasChildrenInDb(database: Database.Database, parentId: string): boolean
   const count = database
     .prepare(`SELECT COUNT(*) as count FROM notes WHERE parent_id = ?`)
     .get(parentId) as { count: number };
-  
+
   return count.count > 0;
 }
 
 export async function loadTreeChildren(nodeId: string): Promise<TreeNode[]> {
   const database = getDb();
-  
+
   // Handle virtual root - return top-level items (parent_id IS NULL)
   if (nodeId === "__virtual_root__") {
     const notes = database
       .prepare(`
-        SELECT * FROM notes 
+        SELECT * FROM notes
         WHERE parent_id IS NULL
         ORDER BY label
       `)
       .all() as DbNote[];
-    
+
     const result: TreeNode[] = [];
-    
+
     for (const note of notes) {
       const hasChildren = hasChildrenInDb(database, note.id);
       result.push({
@@ -57,21 +69,21 @@ export async function loadTreeChildren(nodeId: string): Promise<TreeNode[]> {
         type: "note"
       });
     }
-    
+
     return result;
   }
-  
+
   // Find children for a specific parent
   const notes = database
     .prepare(`
-      SELECT * FROM notes 
+      SELECT * FROM notes
       WHERE parent_id = ?
       ORDER BY label
     `)
     .all(nodeId) as DbNote[];
-  
+
   const result: TreeNode[] = [];
-  
+
   for (const note of notes) {
     const hasChildren = hasChildrenInDb(database, note.id);
     result.push({
@@ -82,20 +94,20 @@ export async function loadTreeChildren(nodeId: string): Promise<TreeNode[]> {
       type: "note"
     });
   }
-  
+
   return result;
 }
 
 export async function moveItem(sourceId: string, targetId: string): Promise<boolean> {
   const database = getDb();
-  
+
   try {
     const newParentId = targetId === "__virtual_root__" ? null : targetId;
-    
+
     database
       .prepare(`UPDATE notes SET parent_id = ? WHERE id = ?`)
       .run(newParentId, sourceId);
-    
+
     return true;
   } catch (error) {
     console.error("Error moving item:", error);
@@ -105,12 +117,12 @@ export async function moveItem(sourceId: string, targetId: string): Promise<bool
 
 export async function renameItem(nodeId: string, newLabel: string): Promise<boolean> {
   const database = getDb();
-  
+
   try {
     database
       .prepare(`UPDATE notes SET label = ? WHERE id = ?`)
       .run(newLabel.trim(), nodeId);
-    
+
     return true;
   } catch (error) {
     console.error("Error renaming item:", error);
@@ -120,18 +132,18 @@ export async function renameItem(nodeId: string, newLabel: string): Promise<bool
 
 export async function createNewItem(parentId: string, type: "folder" | "note" = "note"): Promise<string | null> {
   const database = getDb();
-  
+
   try {
     const id = `new-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newParentId = parentId === "__virtual_root__" ? null : parentId;
-    
+
     database
       .prepare(`
         INSERT INTO notes (id, label, parent_id)
         VALUES (?, ?, ?)
       `)
       .run(id, "New Note", newParentId);
-    
+
     return id;
   } catch (error) {
     console.error("Error creating new item:", error);
@@ -141,16 +153,16 @@ export async function createNewItem(parentId: string, type: "folder" | "note" = 
 
 export async function deleteItem(nodeId: string): Promise<boolean> {
   const database = getDb();
-  
+
   try {
     // Delete all descendants first
     await deleteDescendants(database, nodeId);
-    
+
     // Delete the item itself
     database
       .prepare(`DELETE FROM notes WHERE id = ?`)
       .run(nodeId);
-    
+
     return true;
   } catch (error) {
     console.error("Error deleting item:", error);
@@ -163,7 +175,7 @@ async function deleteDescendants(database: Database.Database, parentId: string):
   const children = database
     .prepare(`SELECT id FROM notes WHERE parent_id = ?`)
     .all(parentId) as { id: string }[];
-  
+
   // Recursively delete each child and their descendants
   for (const child of children) {
     await deleteDescendants(database, child.id);

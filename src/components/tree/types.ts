@@ -59,7 +59,7 @@ export interface TreeViewProps {
   onSelect?: TreeSelectHandler;
   onFocus?: TreeFocusHandler;
   onExpand?: TreeExpandHandler;
-  onCutPaste?: TreeCutPasteHandler;
+  onMoveItemToNewParent?: TreeCutPasteHandler;
   onRename?: TreeRenameHandler;
   onCreate?: TreeCreateHandler;
   onDelete?: TreeDeleteHandler;

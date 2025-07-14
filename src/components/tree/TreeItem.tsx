@@ -10,6 +10,7 @@ import { Transition } from "solid-transition-group";
 import { TreeItemProps } from "./types";
 import { useTreeContext } from "./context";
 import { ANIMATION_CLASSES } from "./constants";
+import { LoadingTreeItem } from "./LoadingTreeItem";
 
 const ExpandCollapseIcon = (props: { expanded: boolean; class?: string }) => (
   <svg
@@ -180,16 +181,7 @@ export const TreeItem = (props: TreeItemProps) => {
       <TreeElementTransition>
         <Show when={expanded() && props.node.hasChildren}>
           <ul>
-            <Suspense
-              fallback={
-                <li class="px-4 py-2">
-                  <div class="flex items-center gap-2 text-sm opacity-60">
-                    <span class="loading loading-spinner loading-xs" />
-                    <span>Loading...</span>
-                  </div>
-                </li>
-              }
-            >
+            <Suspense fallback={<LoadingTreeItem />}>
               <For each={childrenResource()}>
                 {(child) => (
                   <TreeItem node={{ ...child, level: level() + 1 }} />

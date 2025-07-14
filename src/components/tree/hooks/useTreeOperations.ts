@@ -183,10 +183,10 @@ export const useTreeOperations = (
 
   const handlePaste = async (targetId: string) => {
     const cutId = state.cutNodeId();
-    if (!cutId || !props.onCutPaste) return;
+    if (!cutId || !props.onMoveItemToNewParent) return;
 
     try {
-      const operationSucceeded = await props.onCutPaste(cutId, targetId);
+      const operationSucceeded = await props.onMoveItemToNewParent(cutId, targetId);
       if (operationSucceeded) {
         const getParentIdFn = getParentIdMemo();
         const sourceParentId = getParentIdFn(cutId);
@@ -211,10 +211,10 @@ export const useTreeOperations = (
 
   const handleMoveToRoot = async (nodeId?: string) => {
     const targetNodeId = nodeId || state.focusedNode()?.id;
-    if (!targetNodeId || !props.onCutPaste) return;
+    if (!targetNodeId || !props.onMoveItemToNewParent) return;
 
     try {
-      const operationSucceeded = await props.onCutPaste(
+      const operationSucceeded = await props.onMoveItemToNewParent(
         targetNodeId,
         VIRTUAL_ROOT_ID
       );

@@ -3,6 +3,7 @@ import { createMemo, For, onMount, splitProps, Suspense } from "solid-js";
 import { TreeItem } from "./tree/TreeItem";
 import { VIRTUAL_ROOT_ID } from "./tree/constants";
 import { TreeContext } from "./tree/context";
+import { LoadingTreeItem } from "./tree/LoadingTreeItem";
 import {
   useTreeEffects,
   useTreeKeyboard,
@@ -90,16 +91,7 @@ export const TreeView = (props: TreeViewProps) => {
           tabIndex={0}
           onKeyDown={handleKeyDown}
         >
-          <Suspense
-            fallback={
-              <li class="px-4 py-2">
-                <div class="flex items-center gap-2 text-sm opacity-60">
-                  <span class="loading loading-spinner loading-xs" />
-                  <span>Loading...</span>
-                </div>
-              </li>
-            }
-          >
+          <Suspense fallback={<LoadingTreeItem />}>
             <For each={state.loadedChildren().get(VIRTUAL_ROOT_ID) || []}>
               {(node) => <TreeItem node={{ ...node, level: 0 }} />}
             </For>

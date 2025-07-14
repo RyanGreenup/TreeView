@@ -472,7 +472,7 @@ export default function TreeExample() {
                 onSelect={handleSelect}
                 onFocus={handleFocus}
                 onExpand={handleExpand}
-                onCutPaste={handleCutPaste}
+                onMoveItemToNewParent={handleCutPaste}
                 onRename={handleRename}
                 onCreate={handleCreateNew}
                 onDelete={handleDelete}

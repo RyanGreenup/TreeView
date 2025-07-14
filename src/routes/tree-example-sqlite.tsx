@@ -1,13 +1,14 @@
 import { createSignal } from "solid-js";
-import { TreeCard } from "~/components/TreeCard";
 import { StatusDisplay } from "~/components/StatusDisplay";
-import { TreeNode, TreeView, TreeViewRef } from "~/components/TreeView";
+import { TreeViewRef } from "~/components/tree/types";
+import { TreeCard } from "~/components/TreeCard";
+import { TreeNode, TreeView } from "~/components/TreeView";
 import {
+  createNewItem,
+  deleteItem,
   loadTreeChildren,
   moveItem,
   renameItem,
-  createNewItem,
-  deleteItem,
 } from "~/lib/server-actions";
 
 export default function TreeExampleSQLite() {
@@ -36,7 +37,7 @@ export default function TreeExampleSQLite() {
     treeViewRef?.refreshTree();
   };
 
-  const handleCutPaste = async (
+  const handleMoveItemToNewParent = async (
     sourceId: string,
     targetId: string,
   ): Promise<boolean> => {
@@ -147,7 +148,7 @@ export default function TreeExampleSQLite() {
         console.log("Paste to node:", node.id);
         break;
       case "3":
-        await handleCutPaste(node.id, "__virtual_root__");
+        await handleMoveItemToNewParent(node.id, "__virtual_root__");
         console.log("Moved to root:", node.id);
         break;
       case "4":
@@ -324,12 +325,12 @@ export default function TreeExampleSQLite() {
               onSelect={handleSelect}
               onFocus={handleFocus}
               onExpand={handleExpand}
-              onCutPaste={handleCutPaste}
-              onRename={handleRename}
+              loadChildren={loadChildren}
               onCreate={handleCreateNew}
+              onMoveItemToNewParent={handleMoveItemToNewParent}
+              onRename={handleRename}
               onDelete={handleDelete}
               onContextMenu={handleContextMenu}
-              loadChildren={loadChildren}
               ref={(ref) => (treeViewRef = ref)}
             />
           </TreeCard>

@@ -17,30 +17,6 @@ const getTreeChildren = cache(async (nodeId: string) => {
   return await loadTreeChildren(nodeId);
 }, "tree-children");
 
-// Server actions for tree operations
-const moveItemAction = action(async (sourceId: string, targetId: string) => {
-  "use server";
-  return await moveItem(sourceId, targetId);
-}, "move-item");
-
-const renameItemAction = action(async (nodeId: string, newLabel: string) => {
-  "use server";
-  return await renameItem(nodeId, newLabel);
-}, "rename-item");
-
-const createNewItemAction = action(
-  async (parentId: string, type: "folder" | "note" = "note") => {
-    "use server";
-    return await createNewItem(parentId, type);
-  },
-  "create-item",
-);
-
-const deleteItemAction = action(async (nodeId: string) => {
-  "use server";
-  return await deleteItem(nodeId);
-}, "delete-item");
-
 export default function TreeExampleSQLite() {
   const [selectedItem, setSelectedItem] = createSignal<TreeNode | null>(null);
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
@@ -109,7 +85,7 @@ export default function TreeExampleSQLite() {
     target_id: string,
   ): Promise<boolean> => {
     try {
-      const success = await moveItemAction(source_id, target_id);
+      const success = await moveItem(source_id, target_id);
       if (success) {
         triggerRefresh();
       }
@@ -128,7 +104,7 @@ export default function TreeExampleSQLite() {
     new_label: string,
   ): Promise<boolean> => {
     try {
-      const success = await renameItemAction(node_id, new_label);
+      const success = await renameItem(node_id, new_label);
       if (success) {
         console.log(`Renamed node ${node_id} to "${new_label}"`);
         triggerRefresh();
@@ -146,7 +122,8 @@ export default function TreeExampleSQLite() {
   const handleCreateNew = async (parent_id: string): Promise<string | null> => {
     try {
       // For now, create notes by default. This could be enhanced with a dialog
-      const newItemId = await createNewItemAction(parent_id, "note");
+      // Call the server function directly to avoid action context issues
+      const newItemId = await createNewItem(parent_id, "note");
 
       if (newItemId) {
         console.log(
@@ -161,13 +138,12 @@ export default function TreeExampleSQLite() {
       return null;
     }
   };
-
   /**
    * Handles deleting an item by calling the server action
    */
   const handleDelete = async (node_id: string): Promise<boolean> => {
     try {
-      const success = await deleteItemAction(node_id);
+      const success = await deleteItem(node_id);
 
       if (success) {
         console.log(`Deleted node ${node_id} and its descendants`);

@@ -1,4 +1,5 @@
 import { createSignal, createResource } from "solid-js";
+import { TreeCard } from "~/components/TreeCard";
 import { action, cache } from "@solidjs/router";
 import { StatusDisplay } from "~/components/StatusDisplay";
 import { TreeNode, TreeView } from "~/components/TreeView";
@@ -256,15 +257,6 @@ export default function TreeExampleSQLite() {
     }
   };
 
-  // Helper function to create a card component
-  const createCard = (title: string, children: any) => (
-    <div class="card bg-base-100 shadow-xl">
-      <div class="card-body">
-        <h2 class="card-title">{title}</h2>
-        {children}
-      </div>
-    </div>
-  );
 
   // Helper function to create tree action buttons
   const createTreeButton = (
@@ -394,9 +386,9 @@ export default function TreeExampleSQLite() {
 
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2">
-          {createCard(
-            "Notes & Folders Explorer",
-            <>
+          <TreeCard 
+            title="Notes & Folders Explorer"
+          >
               <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-4 gap-4">
                 <div>
                   <p class="text-sm opacity-70">
@@ -426,13 +418,11 @@ export default function TreeExampleSQLite() {
                 loadChildren={loadChildren}
                 ref={(ref) => (treeViewRef = ref)}
               />
-            </>,
-          )}
+          </TreeCard>
         </div>
 
         <div class="space-y-6">
-          {createCard(
-            "Current Status",
+          <TreeCard title="Current Status">
             <div class="space-y-4">
               <StatusDisplay
                 title="FOCUSED ITEM"
@@ -476,26 +466,24 @@ export default function TreeExampleSQLite() {
                   )}
                 </div>
               </div>
-            </div>,
-          )}
+            </div>
+          </TreeCard>
 
-          {createCard(
-            "Database Info",
+          <TreeCard title="Database Info">
             <div class="space-y-3">
               {databaseInfo.map((info) =>
                 createInfoRow(info.label, info.content),
               )}
-            </div>,
-          )}
+            </div>
+          </TreeCard>
 
-          {createCard(
-            "Keyboard Shortcuts",
+          <TreeCard title="Keyboard Shortcuts">
             <div class="space-y-3">
               {keyboardShortcuts.map((shortcut) =>
                 createShortcutRow(shortcut.label, shortcut.keys),
               )}
-            </div>,
-          )}
+            </div>
+          </TreeCard>
         </div>
       </div>
     </div>

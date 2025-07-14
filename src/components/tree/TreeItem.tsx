@@ -137,9 +137,9 @@ export const TreeItem = (props: TreeItemProps) => {
         classList={{
           "items-center gap-2 flex": true,
           active: isSelected(),
-          "bg-primary/50": isFocused(),
-          "bg-secondary/50": isSelected(),
-          "opacity-50 bg-warning/20": isCut(),
+          "bg-primary/20": isFocused() && !isSelected(),
+          "bg-primary text-primary-content": isSelected(),
+          "opacity-50 bg-warning text-warning-content": isCut(),
         }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}

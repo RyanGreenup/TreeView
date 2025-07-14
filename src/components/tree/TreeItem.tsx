@@ -138,6 +138,7 @@ export const TreeItem = (props: TreeItemProps) => {
           "items-center gap-2 flex": true,
           active: isSelected(),
           "bg-primary/50": isFocused(),
+          "bg-secondary/50": isSelected(),
           "opacity-50 bg-warning/20": isCut(),
         }}
         onClick={handleClick}

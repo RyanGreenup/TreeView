@@ -1,4 +1,4 @@
-import { createSignal, Component } from "solid-js";
+import { createSignal, Component, createEffect, createResource, For } from "solid-js";
 import { TreeViewRef } from "~/components/tree/types";
 import { TreeNode, TreeView } from "~/components/TreeView";
 import {
@@ -7,23 +7,50 @@ import {
   loadTreeChildren,
   moveItem,
   renameItem,
+  getNotePath,
 } from "~/lib/server-actions";
 
-export interface SQLiteTreeViewProps {
+export interface SQLiteTreeViewWithHoistingProps {
   onSelect?: (node: TreeNode) => void;
   onFocus?: (node: TreeNode) => void;
   onExpand?: (nodeId: string) => void;
-  ref?: (ref: TreeViewRef) => void;
+  ref?: (ref: TreeViewRef & { hoistToNode: (nodeId: string) => void; navigateUp: () => void; resetToRoot: () => void }) => void;
+  hoistedRoot?: () => string;
+  setHoistedRoot?: (rootId: string) => void;
+  setExpandedItems?: (items: string[] | ((prev: string[]) => string[])) => void;
 }
 
-export const SQLiteTreeView: Component<SQLiteTreeViewProps> = (props) => {
+export const SQLiteTreeViewWithHoisting: Component<SQLiteTreeViewWithHoistingProps> = (props) => {
+  const [internalHoistedRoot, setInternalHoistedRoot] = createSignal<string>("__virtual_root__");
   let treeViewRef: TreeViewRef | undefined;
+
+  // Use external hoisted root if provided, otherwise use internal
+  const hoistedRoot = props.hoistedRoot || internalHoistedRoot;
+  const setHoistedRoot = props.setHoistedRoot || setInternalHoistedRoot;
+
+  // Create a resource for the breadcrumb path
+  const [breadcrumbPath] = createResource(hoistedRoot, async (rootId) => {
+    if (rootId === "__virtual_root__") {
+      return [{
+        id: "__virtual_root__",
+        label: "Root",
+        hasChildren: true,
+        level: 0,
+        type: "folder" as const
+      }];
+    }
+    return await getNotePath(rootId);
+  });
 
   /**
    * Load children directly from the database
    */
   const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
     try {
+      // If we're asking for virtual root but have a hoisted root, return the hoisted node's children
+      if (nodeId === "__virtual_root__" && hoistedRoot() !== "__virtual_root__") {
+        return await loadTreeChildren(hoistedRoot());
+      }
       return await loadTreeChildren(nodeId);
     } catch (error) {
       console.error("Error loading children:", error);
@@ -36,6 +63,43 @@ export const SQLiteTreeView: Component<SQLiteTreeViewProps> = (props) => {
    */
   const triggerRefresh = () => {
     treeViewRef?.refreshTree();
+  };
+
+  /**
+   * Hoist the tree to a specific node (set it as the new root)
+   */
+  const hoistToNode = (nodeId: string) => {
+    setHoistedRoot(nodeId);
+    props.setExpandedItems?.([]); // Clear expanded items when hoisting
+    triggerRefresh();
+  };
+
+  /**
+   * Navigate up one level in the hoisted hierarchy
+   */
+  const navigateUp = async () => {
+    if (hoistedRoot() === "__virtual_root__") return;
+    
+    try {
+      const path = await getNotePath(hoistedRoot());
+      if (path.length >= 2) {
+        // Go to parent (second-to-last in path)
+        const parent = path[path.length - 2];
+        hoistToNode(parent.id);
+      } else {
+        // Go to root
+        hoistToNode("__virtual_root__");
+      }
+    } catch (error) {
+      console.error("Error navigating up:", error);
+    }
+  };
+
+  /**
+   * Reset to the true root
+   */
+  const resetToRoot = () => {
+    hoistToNode("__virtual_root__");
   };
 
   const handleMoveItemToNewParent = async (
@@ -112,12 +176,13 @@ export const SQLiteTreeView: Component<SQLiteTreeViewProps> = (props) => {
       "4. Rename",
       "5. Create New Note Here",
       "6. Delete",
-      "7. Cancel",
+      "7. Hoist Here (Set as Root)",
+      "8. Cancel",
     ];
 
     const action = prompt(
       `Choose action for "${node.label}":\n${actions.join("\n")}`,
-      "7",
+      "8",
     );
 
     switch (action) {
@@ -151,6 +216,10 @@ export const SQLiteTreeView: Component<SQLiteTreeViewProps> = (props) => {
           console.log("Delete node:", node.id);
         }
         break;
+      case "7":
+        hoistToNode(node.id);
+        console.log("Hoisted to node:", node.id);
+        break;
       default:
         console.log("Context menu cancelled");
     }
@@ -171,23 +240,57 @@ export const SQLiteTreeView: Component<SQLiteTreeViewProps> = (props) => {
     delete: (nodeId?: string) => treeViewRef?.delete(nodeId),
     cut: (nodeId: string) => treeViewRef?.cut(nodeId),
     paste: (nodeId: string) => treeViewRef?.paste(nodeId),
-  } as TreeViewRef;
+    hoistToNode,
+    navigateUp,
+    resetToRoot,
+  };
 
   // Expose the ref to parent component immediately
   props.ref?.(exposedRef);
 
   return (
-    <TreeView
-      onSelect={props.onSelect}
-      onFocus={props.onFocus}
-      onExpand={props.onExpand}
-      loadChildren={loadChildren}
-      onCreate={handleCreateNew}
-      onMoveItemToNewParent={handleMoveItemToNewParent}
-      onRename={handleRename}
-      onDelete={handleDelete}
-      onContextMenu={handleContextMenu}
-      ref={(ref) => (treeViewRef = ref)}
-    />
+    <div>
+      {/* Breadcrumb Navigation */}
+      <div class="mb-4">
+        <div class="breadcrumbs text-sm">
+          <ul>
+            <For each={breadcrumbPath()}>
+              {(pathNode, index) => (
+                <li>
+                  <button
+                    class={`link ${index() === (breadcrumbPath()?.length ?? 0) - 1 ? 'link-primary font-semibold' : 'link-hover'}`}
+                    onClick={() => {
+                      if (pathNode.id !== hoistedRoot()) {
+                        hoistToNode(pathNode.id);
+                      }
+                    }}
+                  >
+                    {pathNode.label}
+                  </button>
+                </li>
+              )}
+            </For>
+          </ul>
+        </div>
+        {hoistedRoot() !== "__virtual_root__" && (
+          <div class="text-xs text-base-content/50 mt-1">
+            Tree view is focused on: <span class="font-mono">{hoistedRoot()}</span>
+          </div>
+        )}
+      </div>
+
+      <TreeView
+        onSelect={props.onSelect}
+        onFocus={props.onFocus}
+        onExpand={props.onExpand}
+        loadChildren={loadChildren}
+        onCreate={handleCreateNew}
+        onMoveItemToNewParent={handleMoveItemToNewParent}
+        onRename={handleRename}
+        onDelete={handleDelete}
+        onContextMenu={handleContextMenu}
+        ref={(ref) => (treeViewRef = ref)}
+      />
+    </div>
   );
 };

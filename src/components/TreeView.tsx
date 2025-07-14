@@ -78,6 +78,8 @@ export const TreeView = (props: TreeViewProps) => {
       onRename: operations.handleRename,
       onRenameCommit: operations.handleRenameCommit,
       onRenameCancel: operations.handleRenameCancel,
+      onCreateNew: operations.handleCreateNew,
+      onDelete: operations.handleDelete,
       onContextMenu: others.onContextMenu,
       loadChildren: others.loadChildren,
     }),

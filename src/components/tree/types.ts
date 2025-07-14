@@ -50,6 +50,8 @@ export interface TreeContextValue {
   onRename: (nodeId: string) => void;
   onRenameCommit: (nodeId: string, newLabel: string) => void;
   onRenameCancel: () => void;
+  onCreateNew: (parentId?: string) => void;
+  onDelete: (nodeId?: string) => void;
   onContextMenu?: TreeContextMenuHandler;
   loadChildren?: TreeChildrenLoader;
 }

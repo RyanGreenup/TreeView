@@ -11,6 +11,8 @@ import { TreeItemProps } from "./types";
 import { useTreeContext } from "./context";
 import { ANIMATION_CLASSES } from "./constants";
 import { LoadingTreeItem } from "./LoadingTreeItem";
+import { supportsContextMenu, createTouchGestureHandler } from "./touchUtils";
+import { TouchContextMenu } from "./TouchContextMenu";
 
 const ExpandCollapseIcon = (props: { expanded: boolean; class?: string }) => (
   <svg
@@ -50,6 +52,10 @@ export const TreeItem = (props: TreeItemProps) => {
   const [editingLabel, setEditingLabel] = createSignal("");
   let inputRef: HTMLInputElement | undefined;
 
+  // iOS touch context menu state
+  const [showTouchContextMenu, setShowTouchContextMenu] = createSignal(false);
+  const [touchMenuPosition, setTouchMenuPosition] = createSignal({ x: 0, y: 0 });
+
   const expanded = () => ctx.expandedNodes().has(props.node.id);
   const level = () => props.node.level;
   const isSelected = () => ctx.selectedNodeId() === props.node.id;
@@ -81,6 +87,49 @@ export const TreeItem = (props: TreeItemProps) => {
   const handleContextMenu = (e: MouseEvent) => {
     e.preventDefault();
     ctx.onContextMenu?.(props.node, e);
+  };
+
+  // iOS touch context menu handlers
+  const handleTouchContextMenu = (e: TouchEvent) => {
+    const touch = e.touches[0] || e.changedTouches[0];
+    setTouchMenuPosition({ x: touch.clientX, y: touch.clientY });
+    setShowTouchContextMenu(true);
+    
+    // Focus the node when showing touch context menu
+    ctx.onFocus(props.node);
+    ctx.onSelect(props.node);
+  };
+
+  const closeTouchContextMenu = () => {
+    setShowTouchContextMenu(false);
+  };
+
+  // Create touch gesture handler for iOS devices
+  const touchGestureHandler = createTouchGestureHandler(handleTouchContextMenu);
+
+  // Touch context menu actions
+  const handleTouchCut = (nodeId: string) => {
+    ctx.onCut?.(nodeId);
+  };
+
+  const handleTouchPaste = (nodeId: string) => {
+    ctx.onPaste?.(nodeId);
+  };
+
+  const handleTouchRename = (nodeId: string) => {
+    ctx.onRename(nodeId);
+  };
+
+  const handleTouchCreateNew = (parentId: string) => {
+    ctx.onCreateNew(parentId);
+  };
+
+  const handleTouchDelete = (nodeId: string) => {
+    ctx.onDelete(nodeId);
+  };
+
+  const handleTouchMoveToRoot = (nodeId: string) => {
+    ctx.onMoveToRoot?.(nodeId);
   };
 
   const handleExpandClick = (e: MouseEvent) => {
@@ -142,7 +191,8 @@ export const TreeItem = (props: TreeItemProps) => {
           "opacity-50 bg-warning text-warning-content": isCut(),
         }}
         onClick={handleClick}
-        onContextMenu={handleContextMenu}
+        onContextMenu={supportsContextMenu() ? handleContextMenu : undefined}
+        {...(supportsContextMenu() ? {} : touchGestureHandler)}
         data-node-id={props.node.id}
         role="treeitem"
         aria-expanded={expanded()}
@@ -192,6 +242,23 @@ export const TreeItem = (props: TreeItemProps) => {
           </ul>
         </Show>
       </TreeElementTransition>
+
+      {/* iOS Touch Context Menu - only render for iOS devices */}
+      <Show when={!supportsContextMenu()}>
+        <TouchContextMenu
+          node={props.node}
+          isVisible={showTouchContextMenu()}
+          position={touchMenuPosition()}
+          onClose={closeTouchContextMenu}
+          onCut={handleTouchCut}
+          onPaste={handleTouchPaste}
+          onRename={handleTouchRename}
+          onCreateNew={handleTouchCreateNew}
+          onDelete={handleTouchDelete}
+          onMoveToRoot={handleTouchMoveToRoot}
+          hasCutNode={ctx.cutNodeId() !== null}
+        />
+      </Show>
     </li>
   );
 };

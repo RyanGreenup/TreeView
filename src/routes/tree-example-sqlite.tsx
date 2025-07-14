@@ -15,6 +15,7 @@ export default function TreeExampleSQLite() {
   const [selectedItem, setSelectedItem] = createSignal<TreeNode | null>(null);
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
   const [expandedItems, setExpandedItems] = createSignal<string[]>([]);
+  const [filterText, setFilterText] = createSignal<string>("");
 
   let treeViewRef: TreeViewRef | undefined;
 
@@ -23,7 +24,7 @@ export default function TreeExampleSQLite() {
    */
   const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
     try {
-      return await loadTreeChildren(nodeId);
+      return await loadTreeChildren(nodeId, filterText());
     } catch (error) {
       console.error("Error loading children:", error);
       return [];
@@ -318,6 +319,24 @@ export default function TreeExampleSQLite() {
                     action.classes || "",
                   ),
                 )}
+              </div>
+            </div>
+            <div class="mb-4">
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">Filter notes:</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Type to filter notes..."
+                  class="input input-bordered w-full"
+                  value={filterText()}
+                  onInput={(e) => {
+                    setFilterText(e.target.value);
+                    // Trigger refresh when filter changes
+                    setTimeout(() => triggerRefresh(), 100);
+                  }}
+                />
               </div>
             </div>
             <TreeView

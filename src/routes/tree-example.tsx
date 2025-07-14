@@ -73,7 +73,13 @@ const flatTreeData = [
  * // Move a node to the root level
  * handleCutPaste("1-1-1", "__virtual_root__");
  */
-const handleCutPaste = (source_id: string, target_id: string): boolean => {
+const handleCutPaste = async (
+  source_id: string,
+  target_id: string,
+): Promise<boolean> => {
+  // Simulate async operation (e.g., database update)
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
   // Find the source item in the flat data structure
   const sourceItem = flatTreeData.find((item) => item.id === source_id);
 
@@ -108,7 +114,13 @@ const handleCutPaste = (source_id: string, target_id: string): boolean => {
  * // Rename "Project A" to "New Project"
  * handleRename("1-1-1", "New Project");
  */
-const handleRename = (node_id: string, new_label: string): boolean => {
+const handleRename = async (
+  node_id: string,
+  new_label: string,
+): Promise<boolean> => {
+  // Simulate async operation (e.g., database update)
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
   // Find the item in the flat data structure
   const item = flatTreeData.find((item) => item.id === node_id);
 
@@ -135,7 +147,10 @@ const handleRename = (node_id: string, new_label: string): boolean => {
  * // Create a new item at root level
  * const newItemId = handleCreateNew("__virtual_root__");
  */
-const handleCreateNew = (parent_id: string): string | null => {
+const handleCreateNew = async (parent_id: string): Promise<string | null> => {
+  // Simulate async operation (e.g., database insert)
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
   // Generate a unique ID for the new item
   const timestamp = Date.now();
   const newId = `new-${timestamp}`;
@@ -167,7 +182,10 @@ const handleCreateNew = (parent_id: string): string | null => {
  * // Delete "Project A" and all its children
  * handleDelete("1-1-1");
  */
-const handleDelete = (node_id: string): boolean => {
+const handleDelete = async (node_id: string): Promise<boolean> => {
+  // Simulate async operation (e.g., database delete)
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
   // Find all descendants of the node to delete
   const getDescendants = (parentId: string): string[] => {
     const children = flatTreeData
@@ -294,9 +312,10 @@ export default function TreeExample() {
         console.log("Paste to node:", node.id);
         break;
       case "3":
-        handleCutPaste(node.id, "__virtual_root__");
-        treeViewRef?.refreshTree();
-        console.log("Moved to root:", node.id);
+        handleCutPaste(node.id, "__virtual_root__").then(() => {
+          treeViewRef?.refreshTree();
+          console.log("Moved to root:", node.id);
+        });
         break;
       case "4":
         treeViewRef?.rename(node.id);

@@ -140,35 +140,48 @@ export const TreeView = (props: TreeViewProps) => {
     setCutNodeId(nodeId);
   };
 
-  const handlePaste = (targetId: string) => {
+  const handlePaste = async (targetId: string) => {
     const cutId = cutNodeId();
     if (cutId && others.onCutPaste) {
-      const operationSucceeded = others.onCutPaste(cutId, targetId);
-      if (operationSucceeded) {
-        // Get the source parent using the parent lookup function
-        const getParentIdFn = getParentIdMemo();
-        const sourceParentId = getParentIdFn(cutId);
-        const parentsToRefresh = [sourceParentId, targetId].filter(
-          (id) => id,
-        ) as string[];
-        refreshParents(parentsToRefresh);
-        setCutNodeId(undefined);
+      try {
+        const operationSucceeded = await others.onCutPaste(cutId, targetId);
+        if (operationSucceeded) {
+          // Get the source parent using the parent lookup function
+          const getParentIdFn = getParentIdMemo();
+          const sourceParentId = getParentIdFn(cutId);
+          const parentsToRefresh = [sourceParentId, targetId].filter(
+            (id) => id,
+          ) as string[];
+          refreshParents(parentsToRefresh);
+          setCutNodeId(undefined);
+        }
+      } catch (error) {
+        console.warn("Cut/paste operation failed:", error);
       }
     }
   };
 
-  const handleMoveToRoot = (nodeId?: string) => {
+  const handleMoveToRoot = async (nodeId?: string) => {
     const targetNodeId = nodeId || focusedNode()?.id;
 
     if (targetNodeId && others.onCutPaste) {
-      others.onCutPaste(targetNodeId, VIRTUAL_ROOT_ID);
-      // Get the source parent for the node being moved to root
-      const getParentIdFn = getParentIdMemo();
-      const sourceParentId = getParentIdFn(targetNodeId);
-      const parentsToRefresh = [sourceParentId, VIRTUAL_ROOT_ID].filter(
-        (id) => id,
-      ) as string[];
-      refreshParents(parentsToRefresh);
+      try {
+        const operationSucceeded = await others.onCutPaste(
+          targetNodeId,
+          VIRTUAL_ROOT_ID,
+        );
+        if (operationSucceeded) {
+          // Get the source parent for the node being moved to root
+          const getParentIdFn = getParentIdMemo();
+          const sourceParentId = getParentIdFn(targetNodeId);
+          const parentsToRefresh = [sourceParentId, VIRTUAL_ROOT_ID].filter(
+            (id) => id,
+          ) as string[];
+          refreshParents(parentsToRefresh);
+        }
+      } catch (error) {
+        console.warn("Move to root operation failed:", error);
+      }
     }
   };
 
@@ -249,45 +262,53 @@ export const TreeView = (props: TreeViewProps) => {
     }
   };
 
-  const handleCreateNew = (parentId?: string) => {
+  const handleCreateNew = async (parentId?: string) => {
     const targetParentId = parentId || focusedNode()?.id || VIRTUAL_ROOT_ID;
 
     if (others.onCreate) {
-      const newItemId = others.onCreate(targetParentId);
-      if (newItemId) {
-        // Refresh the parent and force it to expand to show the new item
-        refreshParents([targetParentId], { forceExpand: true });
-        // Queue the new item for focusing after the parent refreshes
-        setPendingFocusNodeId(newItemId);
+      try {
+        const newItemId = await others.onCreate(targetParentId);
+        if (newItemId) {
+          // Refresh the parent and force it to expand to show the new item
+          refreshParents([targetParentId], { forceExpand: true });
+          // Queue the new item for focusing after the parent refreshes
+          setPendingFocusNodeId(newItemId);
+        }
+      } catch (error) {
+        console.warn("Create operation failed:", error);
       }
     }
   };
 
-  const handleDelete = (nodeId?: string) => {
+  const handleDelete = async (nodeId?: string) => {
     const targetNodeId = nodeId || focusedNode()?.id;
 
     if (targetNodeId && others.onDelete) {
-      const success = others.onDelete(targetNodeId);
-      if (success) {
-        // Get the parent ID for refresh
-        const getParentIdFn = getParentIdMemo();
-        const parentId = getParentIdFn(targetNodeId) || VIRTUAL_ROOT_ID;
+      try {
+        const success = await others.onDelete(targetNodeId);
+        if (success) {
+          // Get the parent ID for refresh
+          const getParentIdFn = getParentIdMemo();
+          const parentId = getParentIdFn(targetNodeId) || VIRTUAL_ROOT_ID;
 
-        // Clear focus/selection if they were on the deleted node
-        if (focusedNode()?.id === targetNodeId) {
-          setFocusedNode(null);
-        }
-        if (selectedNode()?.id === targetNodeId) {
-          setSelectedNode(null);
-        }
+          // Clear focus/selection if they were on the deleted node
+          if (focusedNode()?.id === targetNodeId) {
+            setFocusedNode(null);
+          }
+          if (selectedNode()?.id === targetNodeId) {
+            setSelectedNode(null);
+          }
 
-        // Clear cut if the deleted node was cut
-        if (cutNodeId() === targetNodeId) {
-          setCutNodeId(undefined);
-        }
+          // Clear cut if the deleted node was cut
+          if (cutNodeId() === targetNodeId) {
+            setCutNodeId(undefined);
+          }
 
-        // Refresh the parent to remove the deleted node from view
-        refreshParents([parentId]);
+          // Refresh the parent to remove the deleted node from view
+          refreshParents([parentId]);
+        }
+      } catch (error) {
+        console.warn("Delete operation failed:", error);
       }
     }
   };
@@ -299,17 +320,21 @@ export const TreeView = (props: TreeViewProps) => {
     }
   };
 
-  const handleRenameCommit = (nodeId: string, newLabel: string) => {
+  const handleRenameCommit = async (nodeId: string, newLabel: string) => {
     if (others.onRename) {
-      const success = others.onRename(nodeId, newLabel);
-      if (success) {
-        setEditingNodeId(undefined);
-        if (REFRESH_TREE_AFTER_RENAME) {
-          refreshTree();
-        } else {
-          // Update the node label in place without full refresh
-          updateNodeLabelInPlace(nodeId, newLabel);
+      try {
+        const success = await others.onRename(nodeId, newLabel);
+        if (success) {
+          setEditingNodeId(undefined);
+          if (REFRESH_TREE_AFTER_RENAME) {
+            refreshTree();
+          } else {
+            // Update the node label in place without full refresh
+            updateNodeLabelInPlace(nodeId, newLabel);
+          }
         }
+      } catch (error) {
+        console.warn("Rename operation failed:", error);
       }
     }
   };

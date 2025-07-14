@@ -257,7 +257,6 @@ export default function TreeExampleSQLite() {
     }
   };
 
-
   // Helper function to create tree action buttons
   const createTreeButton = (
     label: string,
@@ -386,38 +385,36 @@ export default function TreeExampleSQLite() {
 
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2">
-          <TreeCard 
-            title="Notes & Folders Explorer"
-          >
-              <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-4 gap-4">
-                <div>
-                  <p class="text-sm opacity-70">
-                    Connected to SQLite database - Click to select, use keyboard
-                    arrows to navigate
-                  </p>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  {treeActions.map((action) =>
-                    createTreeButton(
-                      action.label,
-                      action.action,
-                      action.classes || "",
-                    ),
-                  )}
-                </div>
+          <TreeCard title="Notes & Folders Explorer">
+            <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-4 gap-4">
+              <div>
+                <p class="text-sm opacity-70">
+                  Connected to SQLite database - Click to select, use keyboard
+                  arrows to navigate
+                </p>
               </div>
-              <TreeView
-                onSelect={handleSelect}
-                onFocus={handleFocus}
-                onExpand={handleExpand}
-                onCutPaste={handleCutPaste}
-                onRename={handleRename}
-                onCreate={handleCreateNew}
-                onDelete={handleDelete}
-                onContextMenu={handleContextMenu}
-                loadChildren={loadChildren}
-                ref={(ref) => (treeViewRef = ref)}
-              />
+              <div class="flex flex-wrap gap-2">
+                {treeActions.map((action) =>
+                  createTreeButton(
+                    action.label,
+                    action.action,
+                    action.classes || "",
+                  ),
+                )}
+              </div>
+            </div>
+            <TreeView
+              onSelect={handleSelect}
+              onFocus={handleFocus}
+              onExpand={handleExpand}
+              onCutPaste={handleCutPaste}
+              onRename={handleRename}
+              onCreate={handleCreateNew}
+              onDelete={handleDelete}
+              onContextMenu={handleContextMenu}
+              loadChildren={loadChildren}
+              ref={(ref) => (treeViewRef = ref)}
+            />
           </TreeCard>
         </div>
 

@@ -18,15 +18,16 @@ export const TreeView = (props: TreeViewProps) => {
   const [local, others] = splitProps(props, ["class"]);
 
   let treeRef: HTMLUListElement | undefined;
-  let containerRef: HTMLDivElement | undefined;
 
   // Initialize hooks
   const state = useTreeState(others);
-  const operations = useTreeOperations(state, others, { treeRef });
+  const operations = useTreeOperations(state, others, { get treeRef() { return treeRef; } });
   const { handleKeyDown } = useTreeKeyboard(state, operations);
 
   // Setup effects (Auto Scrolling Etc.)
-  useTreeEffects(state, operations, { treeRef, containerRef });
+  useTreeEffects(state, operations, { 
+    get treeRef() { return treeRef; }
+  });
 
   // Expose the TreeView's API to the parent component via the ref prop
   // This allows parent components to programmatically control the tree (expand/collapse nodes, focus items, etc.)
@@ -79,25 +80,20 @@ export const TreeView = (props: TreeViewProps) => {
   // NOTE We use a context provider to avoid prop drilling
   return (
     <TreeContext.Provider value={contextValue()}>
-      <div
-        ref={containerRef}
-        class={`max-h-96 overflow-y-auto ${local.class || ""}`}
+      <ul
+        ref={treeRef}
+        class={`menu bg-base-200 rounded-box w-full h-96 overflow-y-auto flex-nowrap ${local.class || ""}`}
+        role="tree"
+        aria-label="Tree View"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
       >
-        <ul
-          ref={treeRef}
-          class="menu bg-base-200 rounded-box w-full"
-          role="tree"
-          aria-label="Tree View"
-          tabIndex={0}
-          onKeyDown={handleKeyDown}
-        >
-          <Suspense fallback={<LoadingTreeItem />}>
-            <For each={state.loadedChildren().get(VIRTUAL_ROOT_ID) || []}>
-              {(node) => <TreeItem node={{ ...node, level: 0 }} />}
-            </For>
-          </Suspense>
-        </ul>
-      </div>
+        <Suspense fallback={<LoadingTreeItem />}>
+          <For each={state.loadedChildren().get(VIRTUAL_ROOT_ID) || []}>
+            {(node) => <TreeItem node={{ ...node, level: 0 }} />}
+          </For>
+        </Suspense>
+      </ul>
     </TreeContext.Provider>
   );
 };

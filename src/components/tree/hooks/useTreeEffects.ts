@@ -5,8 +5,7 @@ import { TreeOperations } from "./useTreeOperations";
 import { TreeState } from "./useTreeState";
 
 export interface TreeEffectsConfig {
-  treeRef?: HTMLUListElement;
-  containerRef?: HTMLDivElement;
+  treeRef?: HTMLUListElement | (() => HTMLUListElement | undefined);
 }
 
 /**
@@ -22,14 +21,25 @@ export const useTreeEffects = (
   // Auto-scroll focused node into view
   createEffect(() => {
     const focused = state.focusedNode();
-    if (!focused || !config.treeRef || !config.containerRef) return;
+    if (!focused) return;
 
-    queueMicrotask(() => {
-      const focusedElement = config.treeRef?.querySelector(
+    // Use requestAnimationFrame for more reliable timing after DOM updates
+    requestAnimationFrame(() => {
+      // Get the tree ref dynamically
+      const treeElement = typeof config.treeRef === 'function' ? config.treeRef() : config.treeRef;
+      if (!treeElement) return;
+
+      const focusedElement = treeElement.querySelector(
         `a[data-node-id="${focused.id}"]`,
       ) as HTMLElement;
-      if (focusedElement && config.containerRef) {
-        scrollIntoViewIfNeeded(focusedElement, config.containerRef);
+      
+      if (focusedElement) {
+        // Use browser's native scrollIntoView for self-contained scrolling
+        focusedElement.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "nearest",
+        });
       }
     });
   });
@@ -38,8 +48,11 @@ export const useTreeEffects = (
   createEffect((prevEditing) => {
     const editing = state.editingNodeId();
     // Only restore focus when transitioning from editing to not editing
-    if (prevEditing && editing === undefined && config.treeRef) {
-      config.treeRef.focus();
+    if (prevEditing && editing === undefined) {
+      const treeElement = typeof config.treeRef === 'function' ? config.treeRef() : config.treeRef;
+      if (treeElement) {
+        treeElement.focus();
+      }
     }
     return editing;
   });

@@ -36,7 +36,7 @@ export interface TreeOperations {
 export const useTreeOperations = (
   state: TreeState,
   props: TreeViewProps,
-  refs: { treeRef?: HTMLUListElement }
+  refs: { treeRef?: HTMLUListElement | (() => HTMLUListElement | undefined) }
 ): TreeOperations => {
   const getParentIdMemo = createMemo(() => {
     const loaded = state.loadedChildren();

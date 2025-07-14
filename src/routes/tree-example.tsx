@@ -61,15 +61,15 @@ const flatTreeData = [
 /**
  * Handles cut and paste operations for tree nodes by updating the parent-child relationships
  * in the flat data structure.
- * 
+ *
  * @param source_id - The ID of the node being moved (cut)
  * @param target_id - The ID of the destination node where the source will be pasted
  * @returns boolean - Returns true if the operation was successful, false otherwise
- * 
+ *
  * @example
  * // Move "Project A" to be a child of "Personal"
  * handleCutPaste("1-1-1", "1-2");
- * 
+ *
  * // Move a node to the root level
  * handleCutPaste("1-1-1", "__virtual_root__");
  */
@@ -99,11 +99,11 @@ const handleCutPaste = (source_id: string, target_id: string): boolean => {
 
 /**
  * Handles renaming a tree node by updating its label in the flat data structure.
- * 
+ *
  * @param node_id - The ID of the node being renamed
  * @param new_label - The new label for the node
  * @returns boolean - Returns true if the operation was successful, false otherwise
- * 
+ *
  * @example
  * // Rename "Project A" to "New Project"
  * handleRename("1-1-1", "New Project");
@@ -124,14 +124,14 @@ const handleRename = (node_id: string, new_label: string): boolean => {
 
 /**
  * Handles creating a new item in the tree by adding it to the flat data structure.
- * 
+ *
  * @param parent_id - The ID of the parent node where the new item will be created
  * @returns string | null - Returns the ID of the new item if successful, null otherwise
- * 
+ *
  * @example
  * // Create a new item under "Personal"
  * const newItemId = handleCreateNew("1-2");
- * 
+ *
  * // Create a new item at root level
  * const newItemId = handleCreateNew("__virtual_root__");
  */
@@ -139,28 +139,30 @@ const handleCreateNew = (parent_id: string): string | null => {
   // Generate a unique ID for the new item
   const timestamp = Date.now();
   const newId = `new-${timestamp}`;
-  
+
   // Create the new item
   const newItem = {
     id: newId,
     label: "New Item",
-    parent_id: parent_id === "__virtual_root__" ? null : parent_id
+    parent_id: parent_id === "__virtual_root__" ? null : parent_id,
   };
 
   // Add to the flat data structure
   flatTreeData.push(newItem);
-  console.log(`Created new item "${newItem.label}" with ID ${newId} under parent ${parent_id}`);
-  
+  console.log(
+    `Created new item "${newItem.label}" with ID ${newId} under parent ${parent_id}`,
+  );
+
   return newId;
 };
 
 /**
  * Handles deleting an item from the tree by removing it and all its descendants
  * from the flat data structure.
- * 
+ *
  * @param node_id - The ID of the node to delete
  * @returns boolean - Returns true if the operation was successful, false otherwise
- * 
+ *
  * @example
  * // Delete "Project A" and all its children
  * handleDelete("1-1-1");
@@ -169,34 +171,34 @@ const handleDelete = (node_id: string): boolean => {
   // Find all descendants of the node to delete
   const getDescendants = (parentId: string): string[] => {
     const children = flatTreeData
-      .filter(item => item.parent_id === parentId)
-      .map(item => item.id);
-    
+      .filter((item) => item.parent_id === parentId)
+      .map((item) => item.id);
+
     const descendants = [...children];
-    
+
     // Recursively find all descendants
     for (const childId of children) {
       descendants.push(...getDescendants(childId));
     }
-    
+
     return descendants;
   };
-  
+
   // Get all nodes to delete (the target node + all its descendants)
   const nodesToDelete = [node_id, ...getDescendants(node_id)];
-  
+
   // Remove all nodes from the flat data structure
   const initialLength = flatTreeData.length;
-  
+
   for (let i = flatTreeData.length - 1; i >= 0; i--) {
     if (nodesToDelete.includes(flatTreeData[i].id)) {
       flatTreeData.splice(i, 1);
     }
   }
-  
+
   const deletedCount = initialLength - flatTreeData.length;
   console.log(`Deleted ${deletedCount} nodes starting with ${node_id}`);
-  
+
   return deletedCount > 0;
 };
 
@@ -275,13 +277,13 @@ export default function TreeExample() {
 
   const handleContextMenu = (node: TreeNode, event: MouseEvent) => {
     console.log("Context menu for node:", node);
-    
+
     // Simple context menu - you could enhance this with a proper dropdown
     const action = prompt(
       `Choose action for "${node.label}":\n1. Cut\n2. Paste\n3. Move to Root\n4. Rename\n5. Create New Child\n6. Delete\n7. Cancel`,
       "7",
     );
-    
+
     switch (action) {
       case "1":
         treeViewRef?.cut(node.id);
@@ -305,7 +307,11 @@ export default function TreeExample() {
         console.log("Create new child under:", node.id);
         break;
       case "6":
-        if (confirm(`Are you sure you want to delete "${node.label}" and all its children?`)) {
+        if (
+          confirm(
+            `Are you sure you want to delete "${node.label}" and all its children?`,
+          )
+        ) {
           treeViewRef?.delete(node.id);
           console.log("Delete node:", node.id);
         }
@@ -423,7 +429,12 @@ export default function TreeExample() {
                     class="btn btn-outline btn-sm btn-error"
                     onClick={() => {
                       const focused = focusedItem();
-                      if (focused && confirm(`Are you sure you want to delete "${focused.label}" and all its children?`)) {
+                      if (
+                        focused &&
+                        confirm(
+                          `Are you sure you want to delete "${focused.label}" and all its children?`,
+                        )
+                      ) {
                         treeViewRef?.delete();
                       }
                     }}

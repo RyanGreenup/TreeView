@@ -2,7 +2,13 @@ import { createSignal, createResource } from "solid-js";
 import { action, cache } from "@solidjs/router";
 import { StatusDisplay } from "~/components/StatusDisplay";
 import { TreeNode, TreeView } from "~/components/TreeView";
-import { loadTreeChildren, moveItem, renameItem, createNewItem, deleteItem } from "~/lib/server-actions";
+import {
+  loadTreeChildren,
+  moveItem,
+  renameItem,
+  createNewItem,
+  deleteItem,
+} from "~/lib/server-actions";
 
 // Cache the tree children loading
 const getTreeChildren = cache(async (nodeId: string) => {
@@ -21,10 +27,13 @@ const renameItemAction = action(async (nodeId: string, newLabel: string) => {
   return await renameItem(nodeId, newLabel);
 }, "rename-item");
 
-const createNewItemAction = action(async (parentId: string, type: "folder" | "note" = "note") => {
-  "use server";
-  return await createNewItem(parentId, type);
-}, "create-item");
+const createNewItemAction = action(
+  async (parentId: string, type: "folder" | "note" = "note") => {
+    "use server";
+    return await createNewItem(parentId, type);
+  },
+  "create-item",
+);
 
 const deleteItemAction = action(async (nodeId: string) => {
   "use server";
@@ -40,7 +49,7 @@ export default function TreeExampleSQLite() {
   // Create a resource to load initial tree data for SSR
   const [initialTreeData] = createResource(
     () => refreshTrigger(),
-    () => getTreeChildren("__virtual_root__")
+    () => getTreeChildren("__virtual_root__"),
   );
 
   let treeViewRef:
@@ -85,7 +94,7 @@ export default function TreeExampleSQLite() {
    * Triggers a refresh of the tree data
    */
   const triggerRefresh = () => {
-    setRefreshTrigger(prev => prev + 1);
+    setRefreshTrigger((prev) => prev + 1);
     setTimeout(() => {
       treeViewRef?.refreshTree();
     }, 100);
@@ -94,7 +103,10 @@ export default function TreeExampleSQLite() {
   /**
    * Handles cut and paste operations by calling the server action
    */
-  const handleCutPaste = async (source_id: string, target_id: string): Promise<boolean> => {
+  const handleCutPaste = async (
+    source_id: string,
+    target_id: string,
+  ): Promise<boolean> => {
     try {
       const success = await moveItemAction(source_id, target_id);
       if (success) {
@@ -110,7 +122,10 @@ export default function TreeExampleSQLite() {
   /**
    * Handles renaming a tree node by calling the server action
    */
-  const handleRename = async (node_id: string, new_label: string): Promise<boolean> => {
+  const handleRename = async (
+    node_id: string,
+    new_label: string,
+  ): Promise<boolean> => {
     try {
       const success = await renameItemAction(node_id, new_label);
       if (success) {
@@ -131,12 +146,14 @@ export default function TreeExampleSQLite() {
     try {
       // For now, create notes by default. This could be enhanced with a dialog
       const newItemId = await createNewItemAction(parent_id, "note");
-      
+
       if (newItemId) {
-        console.log(`Created new item with ID ${newItemId} under parent ${parent_id}`);
+        console.log(
+          `Created new item with ID ${newItemId} under parent ${parent_id}`,
+        );
         triggerRefresh();
       }
-      
+
       return newItemId;
     } catch (error) {
       console.error("Error creating new item:", error);
@@ -150,12 +167,12 @@ export default function TreeExampleSQLite() {
   const handleDelete = async (node_id: string): Promise<boolean> => {
     try {
       const success = await deleteItemAction(node_id);
-      
+
       if (success) {
         console.log(`Deleted node ${node_id} and its descendants`);
         triggerRefresh();
       }
-      
+
       return success;
     } catch (error) {
       console.error("Error deleting item:", error);
@@ -184,7 +201,7 @@ export default function TreeExampleSQLite() {
 
   const handleContextMenu = async (node: TreeNode, event: MouseEvent) => {
     console.log("Context menu for node:", node);
-    
+
     // Simple context menu - you could enhance this with a proper dropdown
     const nodeType = node.type || "item";
     const actions = [
@@ -194,14 +211,14 @@ export default function TreeExampleSQLite() {
       "4. Rename",
       `5. Create New ${nodeType === "folder" ? "Note/Folder" : "Note"} Here`,
       "6. Delete",
-      "7. Cancel"
+      "7. Cancel",
     ];
-    
+
     const action = prompt(
       `Choose action for "${node.label}" (${nodeType}):\n${actions.join("\n")}`,
       "7",
     );
-    
+
     switch (action) {
       case "1":
         treeViewRef?.cut(node.id);
@@ -225,7 +242,11 @@ export default function TreeExampleSQLite() {
         console.log("Create new item under:", node.id);
         break;
       case "6":
-        if (confirm(`Are you sure you want to delete "${node.label}" and all its children?`)) {
+        if (
+          confirm(
+            `Are you sure you want to delete "${node.label}" and all its children?`,
+          )
+        ) {
           treeViewRef?.delete(node.id);
           console.log("Delete node:", node.id);
         }
@@ -242,7 +263,8 @@ export default function TreeExampleSQLite() {
           <div class="max-w-md">
             <h1 class="text-4xl font-bold">TreeView with SQLite</h1>
             <p class="py-6">
-              Professional tree component connected to SQLite database with notes and folders.
+              Professional tree component connected to SQLite database with
+              notes and folders.
             </p>
           </div>
         </div>
@@ -256,7 +278,8 @@ export default function TreeExampleSQLite() {
                 <div>
                   <h2 class="card-title">Notes & Folders Explorer</h2>
                   <p class="text-sm opacity-70">
-                    Connected to SQLite database - Click to select, use keyboard arrows to navigate
+                    Connected to SQLite database - Click to select, use keyboard
+                    arrows to navigate
                   </p>
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -318,7 +341,12 @@ export default function TreeExampleSQLite() {
                     class="btn btn-outline btn-sm btn-error"
                     onClick={() => {
                       const focused = focusedItem();
-                      if (focused && confirm(`Are you sure you want to delete "${focused.label}" and all its children?`)) {
+                      if (
+                        focused &&
+                        confirm(
+                          `Are you sure you want to delete "${focused.label}" and all its children?`,
+                        )
+                      ) {
                         treeViewRef?.delete();
                       }
                     }}

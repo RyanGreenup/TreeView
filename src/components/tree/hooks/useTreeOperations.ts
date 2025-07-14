@@ -84,6 +84,12 @@ export const useTreeOperations = (
     state.setCutNodeId(nodeId);
   };
 
+  /*
+      Refresh only the items required by collapsing and expanding
+      causing the data to be loaded back from the database in a simple way
+
+      For debugging, use the `operations.refreshTree();` to refresh the entire tree.
+  */
   const refreshParentChildren = async (
     parentId: string,
     options: { expand?: boolean; focusChild?: string } = {}
@@ -293,9 +299,16 @@ export const useTreeOperations = (
       if (success) {
         state.setEditingNodeId(undefined);
         if (REFRESH_TREE_AFTER_RENAME) {
-          refreshTree();
-        } else {
+
           updateNodeLabelInPlace(nodeId, newLabel);
+        } else {
+
+          const getParentIdFn = getParentIdMemo();
+          const parentId = getParentIdFn(nodeId) || VIRTUAL_ROOT_ID;
+
+          await refreshParentChildren(parentId, {
+            focusChild: nodeId,
+          });
         }
       }
     } catch (error) {

@@ -169,7 +169,7 @@ export const TreeItem = (props: TreeItemProps) => {
           <input
             ref={inputRef}
             type="text"
-            class="input input-sm flex-1 min-w-0"
+            class="input input-sm flex-1 min-w-0 text-base-content"
             value={editingLabel()}
             onInput={(e) => setEditingLabel(e.currentTarget.value)}
             onKeyDown={handleInputKeyDown}

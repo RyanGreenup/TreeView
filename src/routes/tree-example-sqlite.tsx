@@ -1,8 +1,7 @@
-import { createSignal, createResource } from "solid-js";
+import { createSignal } from "solid-js";
 import { TreeCard } from "~/components/TreeCard";
-import { action, cache } from "@solidjs/router";
 import { StatusDisplay } from "~/components/StatusDisplay";
-import { TreeNode, TreeView } from "~/components/TreeView";
+import { TreeNode, TreeView, TreeViewRef } from "~/components/TreeView";
 import {
   loadTreeChildren,
   moveItem,
@@ -11,50 +10,19 @@ import {
   deleteItem,
 } from "~/lib/server-actions";
 
-// Cache the tree children loading - cache key includes refresh trigger
-const getTreeChildren = cache(async (nodeId: string, refreshKey: number) => {
-  "use server";
-  return await loadTreeChildren(nodeId);
-}, "tree-children");
-
 export default function TreeExampleSQLite() {
   const [selectedItem, setSelectedItem] = createSignal<TreeNode | null>(null);
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
   const [expandedItems, setExpandedItems] = createSignal<string[]>([]);
-  const [refreshTrigger, setRefreshTrigger] = createSignal(0);
 
-  // Create a resource to load initial tree data for SSR
-  const [initialTreeData] = createResource(
-    () => refreshTrigger(),
-    () => getTreeChildren("__virtual_root__"),
-  );
-
-  let treeViewRef:
-    | {
-        expandAll: () => void;
-        collapseAll: () => void;
-        collapseAllExceptFocused: () => void;
-        collapseAllExceptSelected: () => void;
-        collapseSome: () => void;
-        foldCycle: () => void;
-        focusAndReveal: (nodeId: string) => Promise<void>;
-        cut: (nodeId: string) => void;
-        paste: (targetId: string) => void;
-        clearCut: () => void;
-        refreshTree: () => void;
-        rename: (nodeId?: string) => void;
-        createNew: (parentId?: string) => void;
-        delete: (nodeId?: string) => void;
-      }
-    | undefined;
+  let treeViewRef: TreeViewRef | undefined;
 
   /**
-   * Load children from the database using the cached server function
+   * Load children directly from the database
    */
   const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
     try {
-      // Use refresh trigger as cache key to ensure fresh data after mutations
-      return await getTreeChildren(nodeId, refreshTrigger());
+      return await loadTreeChildren(nodeId);
     } catch (error) {
       console.error("Error loading children:", error);
       return [];
@@ -65,19 +33,15 @@ export default function TreeExampleSQLite() {
    * Triggers a refresh of the tree data
    */
   const triggerRefresh = () => {
-    setRefreshTrigger((prev) => prev + 1);
     treeViewRef?.refreshTree();
   };
 
-  /**
-   * Handles cut and paste operations by calling the server action
-   */
   const handleCutPaste = async (
-    source_id: string,
-    target_id: string,
+    sourceId: string,
+    targetId: string,
   ): Promise<boolean> => {
     try {
-      const success = await moveItem(source_id, target_id);
+      const success = await moveItem(sourceId, targetId);
       if (success) {
         triggerRefresh();
       }
@@ -88,17 +52,14 @@ export default function TreeExampleSQLite() {
     }
   };
 
-  /**
-   * Handles renaming a tree node by calling the server action
-   */
   const handleRename = async (
-    node_id: string,
-    new_label: string,
+    nodeId: string,
+    newLabel: string,
   ): Promise<boolean> => {
     try {
-      const success = await renameItem(node_id, new_label);
+      const success = await renameItem(nodeId, newLabel);
       if (success) {
-        console.log(`Renamed node ${node_id} to "${new_label}"`);
+        console.log(`Renamed node ${nodeId} to "${newLabel}"`);
         triggerRefresh();
       }
       return success;
@@ -108,40 +69,26 @@ export default function TreeExampleSQLite() {
     }
   };
 
-  /**
-   * Handles creating a new item by calling the server action
-   */
-  const handleCreateNew = async (parent_id: string): Promise<string | null> => {
+  const handleCreateNew = async (parentId: string): Promise<string | null> => {
     try {
-      // For now, create notes by default. This could be enhanced with a dialog
-      // Call the server function directly to avoid action context issues
-      const newItemId = await createNewItem(parent_id, "note");
-
+      const newItemId = await createNewItem(parentId, "note");
       if (newItemId) {
-        console.log(
-          `Created new item with ID ${newItemId} under parent ${parent_id}`,
-        );
+        console.log(`Created new item with ID ${newItemId} under parent ${parentId}`);
         triggerRefresh();
       }
-
       return newItemId;
     } catch (error) {
       console.error("Error creating new item:", error);
       return null;
     }
   };
-  /**
-   * Handles deleting an item by calling the server action
-   */
-  const handleDelete = async (node_id: string): Promise<boolean> => {
+  const handleDelete = async (nodeId: string): Promise<boolean> => {
     try {
-      const success = await deleteItem(node_id);
-
+      const success = await deleteItem(nodeId);
       if (success) {
-        console.log(`Deleted node ${node_id} and its descendants`);
+        console.log(`Deleted node ${nodeId} and its descendants`);
         triggerRefresh();
       }
-
       return success;
     } catch (error) {
       console.error("Error deleting item:", error);

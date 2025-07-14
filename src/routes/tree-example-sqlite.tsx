@@ -122,19 +122,18 @@ export default function TreeExampleSQLite() {
     console.log("Context menu for node:", node);
 
     // Simple context menu - you could enhance this with a proper dropdown
-    const nodeType = node.type || "item";
     const actions = [
       "1. Cut",
       "2. Paste",
       "3. Move to Root",
       "4. Rename",
-      `5. Create New ${nodeType === "folder" ? "Note/Folder" : "Note"} Here`,
+      "5. Create New Note Here",
       "6. Delete",
       "7. Cancel",
     ];
 
     const action = prompt(
-      `Choose action for "${node.label}" (${nodeType}):\n${actions.join("\n")}`,
+      `Choose action for "${node.label}":\n${actions.join("\n")}`,
       "7",
     );
 
@@ -156,7 +155,6 @@ export default function TreeExampleSQLite() {
         console.log("Rename node:", node.id);
         break;
       case "5":
-        // For simplicity, always create notes. Could be enhanced to choose type
         await handleCreateNew(node.id);
         console.log("Create new item under:", node.id);
         break;
@@ -258,11 +256,10 @@ export default function TreeExampleSQLite() {
       content: <div class="badge badge-secondary">SQLite</div>,
     },
     {
-      label: "Tables",
+      label: "Schema",
       content: (
         <div class="space-x-1">
-          <div class="badge badge-outline badge-sm">notes</div>
-          <div class="badge badge-outline badge-sm">folders</div>
+          <div class="badge badge-outline badge-sm">notes (id, label, parent_id)</div>
         </div>
       ),
     },
@@ -295,7 +292,7 @@ export default function TreeExampleSQLite() {
             <h1 class="text-4xl font-bold">TreeView with SQLite</h1>
             <p class="py-6">
               Professional tree component connected to SQLite database with
-              notes and folders.
+              hierarchical notes.
             </p>
           </div>
         </div>
@@ -303,7 +300,7 @@ export default function TreeExampleSQLite() {
 
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2">
-          <TreeCard title="Notes & Folders Explorer">
+          <TreeCard title="Notes Explorer">
             <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-4 gap-4">
               <div>
                 <p class="text-sm opacity-70">

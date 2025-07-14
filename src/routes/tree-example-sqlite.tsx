@@ -73,7 +73,9 @@ export default function TreeExampleSQLite() {
     try {
       const newItemId = await createNewItem(parentId, "note");
       if (newItemId) {
-        console.log(`Created new item with ID ${newItemId} under parent ${parentId}`);
+        console.log(
+          `Created new item with ID ${newItemId} under parent ${parentId}`,
+        );
         triggerRefresh();
       }
       return newItemId;

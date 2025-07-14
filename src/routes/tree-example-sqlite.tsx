@@ -11,8 +11,8 @@ import {
   deleteItem,
 } from "~/lib/server-actions";
 
-// Cache the tree children loading
-const getTreeChildren = cache(async (nodeId: string) => {
+// Cache the tree children loading - cache key includes refresh trigger
+const getTreeChildren = cache(async (nodeId: string, refreshKey: number) => {
   "use server";
   return await loadTreeChildren(nodeId);
 }, "tree-children");
@@ -53,14 +53,8 @@ export default function TreeExampleSQLite() {
    */
   const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
     try {
-      // For root, use the resource data if available, otherwise fetch fresh
-      if (nodeId === "__virtual_root__") {
-        const cached = initialTreeData();
-        if (cached) {
-          return cached;
-        }
-      }
-      return await getTreeChildren(nodeId);
+      // Use refresh trigger as cache key to ensure fresh data after mutations
+      return await getTreeChildren(nodeId, refreshTrigger());
     } catch (error) {
       console.error("Error loading children:", error);
       return [];
@@ -72,9 +66,7 @@ export default function TreeExampleSQLite() {
    */
   const triggerRefresh = () => {
     setRefreshTrigger((prev) => prev + 1);
-    setTimeout(() => {
-      treeViewRef?.refreshTree();
-    }, 100);
+    treeViewRef?.refreshTree();
   };
 
   /**

@@ -1,4 +1,4 @@
-import { createSignal, Component, createEffect, createResource, For } from "solid-js";
+import { createSignal, Component, createEffect, createResource, For, Suspense } from "solid-js";
 import { TreeViewRef } from "~/components/tree/types";
 import { TreeNode, TreeView } from "~/components/TreeView";
 import {
@@ -254,22 +254,24 @@ export const SQLiteTreeViewWithHoisting: Component<SQLiteTreeViewWithHoistingPro
       <div class="mb-4">
         <div class="breadcrumbs text-sm">
           <ul>
-            <For each={breadcrumbPath()}>
-              {(pathNode, index) => (
-                <li>
-                  <button
-                    class={`link ${index() === (breadcrumbPath()?.length ?? 0) - 1 ? 'link-primary font-semibold' : 'link-hover'}`}
-                    onClick={() => {
-                      if (pathNode.id !== hoistedRoot()) {
-                        hoistToNode(pathNode.id);
-                      }
-                    }}
-                  >
-                    {pathNode.label}
-                  </button>
-                </li>
-              )}
-            </For>
+            <Suspense fallback={<li><span class="loading loading-spinner loading-sm"></span></li>}>
+              <For each={breadcrumbPath()}>
+                {(pathNode, index) => (
+                  <li>
+                    <button
+                      class={`link ${index() === (breadcrumbPath()?.length ?? 0) - 1 ? 'link-primary font-semibold' : 'link-hover'}`}
+                      onClick={() => {
+                        if (pathNode.id !== hoistedRoot()) {
+                          hoistToNode(pathNode.id);
+                        }
+                      }}
+                    >
+                      {pathNode.label}
+                    </button>
+                  </li>
+                )}
+              </For>
+            </Suspense>
           </ul>
         </div>
         {hoistedRoot() !== "__virtual_root__" && (

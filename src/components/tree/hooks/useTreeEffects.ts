@@ -1,18 +1,23 @@
 import { createEffect } from "solid-js";
-import { TreeState } from "./useTreeState";
-import { TreeOperations } from "./useTreeOperations";
-import { scrollIntoViewIfNeeded, flattenTree } from "../utils";
 import { VIRTUAL_ROOT_ID } from "../constants";
+import { flattenTree, scrollIntoViewIfNeeded } from "../utils";
+import { TreeOperations } from "./useTreeOperations";
+import { TreeState } from "./useTreeState";
 
 export interface TreeEffectsConfig {
   treeRef?: HTMLUListElement;
   containerRef?: HTMLDivElement;
 }
 
+/**
+ * Hook that manages side effects for the tree component.
+ * Handles auto-scrolling focused nodes into view, restoring focus when editing stops,
+ * and focusing newly created items when they become available.
+ */
 export const useTreeEffects = (
   state: TreeState,
   operations: TreeOperations,
-  config: TreeEffectsConfig
+  config: TreeEffectsConfig,
 ) => {
   // Auto-scroll focused node into view
   createEffect(() => {
@@ -21,7 +26,7 @@ export const useTreeEffects = (
 
     queueMicrotask(() => {
       const focusedElement = config.treeRef?.querySelector(
-        `a[data-node-id="${focused.id}"]`
+        `a[data-node-id="${focused.id}"]`,
       ) as HTMLElement;
       if (focusedElement && config.containerRef) {
         scrollIntoViewIfNeeded(focusedElement, config.containerRef);
@@ -50,9 +55,11 @@ export const useTreeEffects = (
           children,
           0,
           state.expandedNodes,
-          state.loadedChildren
+          state.loadedChildren,
         );
-        const nodeExists = flattenedNodes.some((node) => node.id === pendingNodeId);
+        const nodeExists = flattenedNodes.some(
+          (node) => node.id === pendingNodeId,
+        );
 
         if (nodeExists) {
           // Node is now available, focus and reveal it

@@ -1,26 +1,15 @@
-import {
-  createMemo,
-  For,
-  onMount,
-  splitProps,
-  Suspense,
-} from "solid-js";
+import { createMemo, For, onMount, splitProps, Suspense } from "solid-js";
 
 import { TreeItem } from "./tree/TreeItem";
-import { TreeContext } from "./tree/context";
 import { VIRTUAL_ROOT_ID } from "./tree/constants";
+import { TreeContext } from "./tree/context";
 import {
-  useTreeState,
-  useTreeOperations,
-  useTreeKeyboard,
   useTreeEffects,
+  useTreeKeyboard,
+  useTreeOperations,
+  useTreeState,
 } from "./tree/hooks";
-import {
-  TreeViewProps,
-  TreeNode,
-  TreeContextValue,
-  TreeViewRef,
-} from "./tree/types";
+import { TreeContextValue, TreeViewProps, TreeViewRef } from "./tree/types";
 
 export type { TreeNode, TreeViewProps } from "./tree/types";
 
@@ -35,9 +24,11 @@ export const TreeView = (props: TreeViewProps) => {
   const operations = useTreeOperations(state, others, { treeRef });
   const { handleKeyDown } = useTreeKeyboard(state, operations);
 
-  // Setup effects
+  // Setup effects (Auto Scrolling Etc.)
   useTreeEffects(state, operations, { treeRef, containerRef });
 
+  // Expose the TreeView's API to the parent component via the ref prop
+  // This allows parent components to programmatically control the tree (expand/collapse nodes, focus items, etc.)
   const treeViewRef: TreeViewRef = {
     expandAll: operations.expandAll,
     collapseAll: operations.collapseAll,
@@ -59,6 +50,8 @@ export const TreeView = (props: TreeViewProps) => {
     others.ref?.(treeViewRef);
   });
 
+  // Create a memo of the state for helper functions used in the TreeItem child component
+  // Memo is reactive, so re-render only when needed.
   const contextValue = createMemo(
     (): TreeContextValue => ({
       expandedNodes: state.expandedNodes,
@@ -82,6 +75,7 @@ export const TreeView = (props: TreeViewProps) => {
     }),
   );
 
+  // NOTE We use a context provider to avoid prop drilling
   return (
     <TreeContext.Provider value={contextValue()}>
       <div

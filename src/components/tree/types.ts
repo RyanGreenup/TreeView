@@ -13,12 +13,25 @@ export type TreeSelectHandler = (node: TreeNode) => void;
 export type TreeFocusHandler = (node: TreeNode) => void;
 export type TreeExpandHandler = (nodeId: string) => void;
 export type TreeChildrenLoader = (nodeId: string) => Promise<TreeNode[]>;
-export type TreeChildrenLoadedHandler = (nodeId: string, children: TreeNode[]) => void;
-export type TreeCutPasteHandler = (sourceId: string, targetId: string) => Promise<boolean>;
-export type TreeRenameHandler = (nodeId: string, newLabel: string) => Promise<boolean>;
+export type TreeChildrenLoadedHandler = (
+  nodeId: string,
+  children: TreeNode[],
+) => void;
+export type TreeCutPasteHandler = (
+  sourceId: string,
+  targetId: string,
+) => Promise<boolean>;
+export type TreeRenameHandler = (
+  nodeId: string,
+  newLabel: string,
+) => Promise<boolean>;
 export type TreeCreateHandler = (parentId: string) => Promise<string | null>;
 export type TreeDeleteHandler = (nodeId: string) => Promise<boolean>;
-export type TreeContextMenuHandler = (node: TreeNode, event: MouseEvent) => void;
+export type TreeContextMenuHandler = (
+  node: TreeNode,
+  event: MouseEvent,
+) => void;
+
 
 export interface TreeContextValue {
   expandedNodes: Accessor<Set<string>>;
@@ -52,20 +65,20 @@ export interface TreeViewProps {
   onDelete?: TreeDeleteHandler;
   onContextMenu?: TreeContextMenuHandler;
   class?: string;
-  /** 
+  /**
    * Callback function that receives the TreeViewRef instance for programmatic control.
    * The ref provides access to tree operations like expand/collapse, cut/paste, and navigation.
    * Store the ref in a variable to call methods like expandAll(), focusAndReveal(), etc.
-   * 
+   *
    * @example
    * ```tsx
    * let treeRef: TreeViewRef | undefined;
-   * 
-   * <TreeView 
+   *
+   * <TreeView
    *   ref={(ref) => treeRef = ref}
    *   // ... other props
    * />
-   * 
+   *
    * // Later, use the ref to control the tree
    * treeRef?.expandAll();
    * treeRef?.focusAndReveal("node-id");
@@ -74,6 +87,10 @@ export interface TreeViewProps {
   ref?: (ref: TreeViewRef) => void;
 }
 
+/**
+ * Reference interface for programmatic control of the TreeView component.
+ * Provides methods to manipulate tree state, navigation, and operations.
+ */
 export interface TreeViewRef {
   expandAll: () => void;
   collapseAll: () => void;

@@ -44,6 +44,96 @@ function hasChildrenInDb(database: Database.Database, parentId: string): boolean
   return count.count > 0;
 }
 
+export async function getNoteDetails(noteId: string): Promise<TreeNode | null> {
+  if (noteId === "__virtual_root__") {
+    return {
+      id: "__virtual_root__",
+      label: "Root",
+      hasChildren: true,
+      level: 0,
+      type: "folder"
+    };
+  }
+
+  const database = getDb();
+  
+  try {
+    const note = database
+      .prepare(`SELECT * FROM notes WHERE id = ?`)
+      .get(noteId) as DbNote | undefined;
+    
+    if (!note) {
+      return null;
+    }
+
+    const hasChildren = hasChildrenInDb(database, note.id);
+    
+    return {
+      id: note.id,
+      label: note.label || "Untitled",
+      hasChildren,
+      level: 0,
+      type: "note"
+    };
+  } catch (error) {
+    console.error("Error getting note details:", error);
+    return null;
+  }
+}
+
+export async function getNotePath(noteId: string): Promise<TreeNode[]> {
+  if (noteId === "__virtual_root__") {
+    return [{
+      id: "__virtual_root__",
+      label: "Root",
+      hasChildren: true,
+      level: 0,
+      type: "folder"
+    }];
+  }
+
+  const database = getDb();
+  const path: TreeNode[] = [];
+  let currentId: string | null = noteId;
+
+  try {
+    while (currentId) {
+      const note = database
+        .prepare(`SELECT * FROM notes WHERE id = ?`)
+        .get(currentId) as DbNote | undefined;
+      
+      if (!note) break;
+
+      const hasChildren = hasChildrenInDb(database, note.id);
+      path.unshift({
+        id: note.id,
+        label: note.label || "Untitled",
+        hasChildren,
+        level: 0,
+        type: "note"
+      });
+
+      currentId = note.parent_id;
+    }
+
+    // Add root if we're not starting from root
+    if (path.length > 0 && path[0].id !== "__virtual_root__") {
+      path.unshift({
+        id: "__virtual_root__",
+        label: "Root",
+        hasChildren: true,
+        level: 0,
+        type: "folder"
+      });
+    }
+
+    return path;
+  } catch (error) {
+    console.error("Error getting note path:", error);
+    return [];
+  }
+}
+
 export async function loadTreeChildren(nodeId: string): Promise<TreeNode[]> {
   const database = getDb();
 

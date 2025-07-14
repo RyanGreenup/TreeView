@@ -1,4 +1,4 @@
-import { createSignal, createResource, For } from "solid-js";
+import { createSignal } from "solid-js";
 import { StatusDisplay } from "~/components/StatusDisplay";
 import { TreeViewRef } from "~/components/tree/types";
 import { TreeCard } from "~/components/TreeCard";
@@ -6,8 +6,6 @@ import { TreeNode, TreeView } from "~/components/TreeView";
 import {
   createNewItem,
   deleteItem,
-  getNoteDetails,
-  getNotePath,
   loadTreeChildren,
   moveItem,
   renameItem,
@@ -17,33 +15,14 @@ export default function TreeExampleSQLite() {
   const [selectedItem, setSelectedItem] = createSignal<TreeNode | null>(null);
   const [focusedItem, setFocusedItem] = createSignal<TreeNode | null>(null);
   const [expandedItems, setExpandedItems] = createSignal<string[]>([]);
-  const [hoistedRoot, setHoistedRoot] = createSignal<string>("__virtual_root__");
 
   let treeViewRef: TreeViewRef | undefined;
-
-  // Create a resource for the breadcrumb path
-  const [breadcrumbPath] = createResource(hoistedRoot, async (rootId) => {
-    if (rootId === "__virtual_root__") {
-      return [{
-        id: "__virtual_root__",
-        label: "Root",
-        hasChildren: true,
-        level: 0,
-        type: "folder" as const
-      }];
-    }
-    return await getNotePath(rootId);
-  });
 
   /**
    * Load children directly from the database
    */
   const loadChildren = async (nodeId: string): Promise<TreeNode[]> => {
     try {
-      // If we're asking for virtual root but have a hoisted root, return the hoisted node's children
-      if (nodeId === "__virtual_root__" && hoistedRoot() !== "__virtual_root__") {
-        return await loadTreeChildren(hoistedRoot());
-      }
       return await loadTreeChildren(nodeId);
     } catch (error) {
       console.error("Error loading children:", error);
@@ -56,43 +35,6 @@ export default function TreeExampleSQLite() {
    */
   const triggerRefresh = () => {
     treeViewRef?.refreshTree();
-  };
-
-  /**
-   * Hoist the tree to a specific node (set it as the new root)
-   */
-  const hoistToNode = (nodeId: string) => {
-    setHoistedRoot(nodeId);
-    setExpandedItems([]); // Clear expanded items when hoisting
-    triggerRefresh();
-  };
-
-  /**
-   * Navigate up one level in the hoisted hierarchy
-   */
-  const navigateUp = async () => {
-    if (hoistedRoot() === "__virtual_root__") return;
-    
-    try {
-      const path = await getNotePath(hoistedRoot());
-      if (path.length >= 2) {
-        // Go to parent (second-to-last in path)
-        const parent = path[path.length - 2];
-        hoistToNode(parent.id);
-      } else {
-        // Go to root
-        hoistToNode("__virtual_root__");
-      }
-    } catch (error) {
-      console.error("Error navigating up:", error);
-    }
-  };
-
-  /**
-   * Reset to the true root
-   */
-  const resetToRoot = () => {
-    hoistToNode("__virtual_root__");
   };
 
   const handleMoveItemToNewParent = async (
@@ -187,13 +129,12 @@ export default function TreeExampleSQLite() {
       "4. Rename",
       "5. Create New Note Here",
       "6. Delete",
-      "7. Hoist Here (Set as Root)",
-      "8. Cancel",
+      "7. Cancel",
     ];
 
     const action = prompt(
       `Choose action for "${node.label}":\n${actions.join("\n")}`,
-      "8",
+      "7",
     );
 
     switch (action) {
@@ -226,10 +167,6 @@ export default function TreeExampleSQLite() {
           treeViewRef?.delete(node.id);
           console.log("Delete node:", node.id);
         }
-        break;
-      case "7":
-        hoistToNode(node.id);
-        console.log("Hoisted to node:", node.id);
         break;
       default:
         console.log("Context menu cancelled");
@@ -309,18 +246,6 @@ export default function TreeExampleSQLite() {
       },
       classes: "btn-error",
     },
-    {
-      label: "Hoist Focused",
-      action: () => {
-        const focused = focusedItem();
-        if (focused) {
-          hoistToNode(focused.id);
-        }
-      },
-      classes: "btn-info",
-    },
-    { label: "Navigate Up", action: navigateUp, classes: "btn-secondary" },
-    { label: "Reset to Root", action: resetToRoot, classes: "btn-warning" },
     { label: "Refresh Tree", action: triggerRefresh, classes: "btn-accent" },
   ];
 
@@ -344,21 +269,6 @@ export default function TreeExampleSQLite() {
       label: "Data Loading",
       content: <div class="badge badge-success">Server-side</div>,
     },
-    {
-      label: "Current Root",
-      content: (
-        <div class="space-x-1">
-          <div class={`badge badge-sm ${hoistedRoot() === "__virtual_root__" ? "badge-neutral" : "badge-info"}`}>
-            {hoistedRoot() === "__virtual_root__" ? "True Root" : "Hoisted"}
-          </div>
-          {hoistedRoot() !== "__virtual_root__" && (
-            <div class="badge badge-outline badge-sm font-mono">
-              {hoistedRoot()}
-            </div>
-          )}
-        </div>
-      ),
-    },
   ];
 
   // Keyboard shortcuts configuration
@@ -374,9 +284,6 @@ export default function TreeExampleSQLite() {
     { label: "Rename", keys: "F2" },
     { label: "Create New", keys: "Insert" },
     { label: "Delete", keys: "Delete" },
-    { label: "Hoist (Context Menu)", keys: "Right Click → 7" },
-    { label: "Navigate Up", keys: "Use buttons" },
-    { label: "Reset to Root", keys: "Use buttons" },
   ];
 
   return (
@@ -413,36 +320,6 @@ export default function TreeExampleSQLite() {
                 )}
               </div>
             </div>
-            
-            {/* Breadcrumb Navigation */}
-            <div class="mb-4">
-              <div class="breadcrumbs text-sm">
-                <ul>
-                  <For each={breadcrumbPath()}>
-                    {(pathNode, index) => (
-                      <li>
-                        <button
-                          class={`link ${index() === (breadcrumbPath()?.length ?? 0) - 1 ? 'link-primary font-semibold' : 'link-hover'}`}
-                          onClick={() => {
-                            if (pathNode.id !== hoistedRoot()) {
-                              hoistToNode(pathNode.id);
-                            }
-                          }}
-                        >
-                          {pathNode.label}
-                        </button>
-                      </li>
-                    )}
-                  </For>
-                </ul>
-              </div>
-              {hoistedRoot() !== "__virtual_root__" && (
-                <div class="text-xs text-base-content/50 mt-1">
-                  Tree view is focused on: <span class="font-mono">{hoistedRoot()}</span>
-                </div>
-              )}
-            </div>
-
             <TreeView
               onSelect={handleSelect}
               onFocus={handleFocus}

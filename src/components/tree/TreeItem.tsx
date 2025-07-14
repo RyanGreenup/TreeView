@@ -1,4 +1,11 @@
-import { createResource, createSignal, createEffect, For, Show, Suspense } from "solid-js";
+import {
+  createResource,
+  createSignal,
+  createEffect,
+  For,
+  Show,
+  Suspense,
+} from "solid-js";
 import { Transition } from "solid-transition-group";
 import { TreeItemProps } from "./types";
 import { useTreeContext } from "./context";
@@ -52,7 +59,8 @@ export const TreeItem = (props: TreeItemProps) => {
   const [childrenResource] = createResource(
     () => (expanded() && props.node.hasChildren ? props.node.id : null),
     async (nodeId) => {
-      const children = await (ctx.loadChildren?.(nodeId) || Promise.resolve([]));
+      const children = await (ctx.loadChildren?.(nodeId) ||
+        Promise.resolve([]));
       if (children.length > 0) {
         ctx.onChildrenLoaded(nodeId, children);
       }

@@ -7,12 +7,14 @@ import {
   onMount,
   Show,
   splitProps,
+  Suspense,
 } from "solid-js";
 
 import { TreeItem } from "./tree/TreeItem";
 import { TreeContext } from "./tree/context";
 import { VIRTUAL_ROOT_ID, REFRESH_TREE_AFTER_RENAME } from "./tree/constants";
 import { createKeyboardHandler } from "./tree/keyboard";
+import { LoadingIndicator } from "./tree/LoadingIndicator";
 import {
   flattenTree,
   scrollIntoViewIfNeeded,
@@ -30,11 +32,9 @@ import {
 
 export type { TreeNode, TreeViewProps } from "./tree/types";
 
-
-
 export const TreeView = (props: TreeViewProps) => {
   const [local, others] = splitProps(props, ["class"]);
-  
+
   const [selectedNode, setSelectedNode] = createSignal<TreeNode | null>(null);
   const [focusedNode, setFocusedNode] = createSignal<TreeNode | null>(null);
   const [expandedNodes, setExpandedNodes] = createSignal<Set<string>>(
@@ -45,12 +45,16 @@ export const TreeView = (props: TreeViewProps) => {
   >(new Map());
   const [foldCycleState, setFoldCycleState] = createSignal<FoldCycleState>(0);
   const [cutNodeId, setCutNodeId] = createSignal<string | undefined>(undefined);
-  const [editingNodeId, setEditingNodeId] = createSignal<string | undefined>(undefined);
-  const [pendingFocusNodeId, setPendingFocusNodeId] = createSignal<string | undefined>(undefined);
+  const [editingNodeId, setEditingNodeId] = createSignal<string | undefined>(
+    undefined,
+  );
+  const [pendingFocusNodeId, setPendingFocusNodeId] = createSignal<
+    string | undefined
+  >(undefined);
   const [pendingExpansions, setPendingExpansions] = createSignal<
     Map<string, boolean>
   >(new Map());
-  
+
   let treeRef: HTMLUListElement | undefined;
   let containerRef: HTMLDivElement | undefined;
 
@@ -144,7 +148,9 @@ export const TreeView = (props: TreeViewProps) => {
         // Get the source parent using the parent lookup function
         const getParentIdFn = getParentIdMemo();
         const sourceParentId = getParentIdFn(cutId);
-        const parentsToRefresh = [sourceParentId, targetId].filter(id => id) as string[];
+        const parentsToRefresh = [sourceParentId, targetId].filter(
+          (id) => id,
+        ) as string[];
         refreshParents(parentsToRefresh);
         setCutNodeId(undefined);
       }
@@ -153,13 +159,15 @@ export const TreeView = (props: TreeViewProps) => {
 
   const handleMoveToRoot = (nodeId?: string) => {
     const targetNodeId = nodeId || focusedNode()?.id;
-    
+
     if (targetNodeId && others.onCutPaste) {
       others.onCutPaste(targetNodeId, VIRTUAL_ROOT_ID);
       // Get the source parent for the node being moved to root
       const getParentIdFn = getParentIdMemo();
       const sourceParentId = getParentIdFn(targetNodeId);
-      const parentsToRefresh = [sourceParentId, VIRTUAL_ROOT_ID].filter(id => id) as string[];
+      const parentsToRefresh = [sourceParentId, VIRTUAL_ROOT_ID].filter(
+        (id) => id,
+      ) as string[];
       refreshParents(parentsToRefresh);
     }
   };
@@ -168,58 +176,82 @@ export const TreeView = (props: TreeViewProps) => {
     setCutNodeId(undefined);
   };
 
-  const refreshParents = (parentIds: string[], options: { forceExpand?: boolean } = {}) => {
+  const refreshParents = (
+    parentIds: string[],
+    options: { forceExpand?: boolean } = {},
+  ) => {
     const getParentIdFn = getParentIdMemo();
     const expanded = expandedNodes();
     const loaded = loadedChildren();
-    
+
     // Resolve leaf nodes to their parents, deduplicate
-    const parentsToRefresh = [...new Set(
-      parentIds
-        .filter(id => id)
-        .map(id => {
-          // If it's a leaf node (not expanded, no children), use grandparent
-          if (id !== VIRTUAL_ROOT_ID && !expanded.has(id) && !loaded.has(id)) {
-            return getParentIdFn(id) || VIRTUAL_ROOT_ID;
-          }
-          return id;
-        })
-    )];
+    const parentsToRefresh = [
+      ...new Set(
+        parentIds
+          .filter((id) => id)
+          .map((id) => {
+            // If it's a leaf node (not expanded, no children), use grandparent
+            if (
+              id !== VIRTUAL_ROOT_ID &&
+              !expanded.has(id) &&
+              !loaded.has(id)
+            ) {
+              return getParentIdFn(id) || VIRTUAL_ROOT_ID;
+            }
+            return id;
+          }),
+      ),
+    ];
 
     // Store expansion states, clear children, collapse
-    const wasExpanded = new Map(parentsToRefresh.map(id => [id, expanded.has(id)]));
-    
-    setLoadedChildren(prev => {
+    const wasExpanded = new Map(
+      parentsToRefresh.map((id) => [id, expanded.has(id)]),
+    );
+
+    setLoadedChildren((prev) => {
       const newMap = new Map(prev);
-      parentsToRefresh.forEach(id => id !== VIRTUAL_ROOT_ID && newMap.delete(id));
+      parentsToRefresh.forEach(
+        (id) => id !== VIRTUAL_ROOT_ID && newMap.delete(id),
+      );
       return newMap;
     });
 
-    setExpandedNodes(prev => {
+    setExpandedNodes((prev) => {
       const newSet = new Set(prev);
-      parentsToRefresh.forEach(id => id !== VIRTUAL_ROOT_ID && newSet.delete(id));
+      parentsToRefresh.forEach(
+        (id) => id !== VIRTUAL_ROOT_ID && newSet.delete(id),
+      );
       return newSet;
     });
 
     // Queue re-expansion
     const toExpand = parentsToRefresh
-      .filter(id => id !== VIRTUAL_ROOT_ID && (options.forceExpand || wasExpanded.get(id)))
-      .map(id => [id, true] as const);
-    
+      .filter(
+        (id) =>
+          id !== VIRTUAL_ROOT_ID &&
+          (options.forceExpand || wasExpanded.get(id)),
+      )
+      .map((id) => [id, true] as const);
+
     if (toExpand.length) setPendingExpansions(new Map(toExpand));
 
     // Handle virtual root
     if (parentsToRefresh.includes(VIRTUAL_ROOT_ID)) {
-      setLoadedChildren(prev => { prev.delete(VIRTUAL_ROOT_ID); return new Map(prev); });
-      others.loadChildren(VIRTUAL_ROOT_ID).then(children => {
-        setLoadedChildren(prev => new Map(prev).set(VIRTUAL_ROOT_ID, children));
+      setLoadedChildren((prev) => {
+        prev.delete(VIRTUAL_ROOT_ID);
+        return new Map(prev);
+      });
+      others.loadChildren(VIRTUAL_ROOT_ID).then((children) => {
+        setLoadedChildren((prev) =>
+          new Map(prev).set(VIRTUAL_ROOT_ID, children),
+        );
       });
     }
   };
 
   const handleCreateNew = (parentId?: string) => {
     const targetParentId = parentId || focusedNode()?.id || VIRTUAL_ROOT_ID;
-    
+
     if (others.onCreate) {
       const newItemId = others.onCreate(targetParentId);
       if (newItemId) {
@@ -233,14 +265,14 @@ export const TreeView = (props: TreeViewProps) => {
 
   const handleDelete = (nodeId?: string) => {
     const targetNodeId = nodeId || focusedNode()?.id;
-    
+
     if (targetNodeId && others.onDelete) {
       const success = others.onDelete(targetNodeId);
       if (success) {
         // Get the parent ID for refresh
         const getParentIdFn = getParentIdMemo();
         const parentId = getParentIdFn(targetNodeId) || VIRTUAL_ROOT_ID;
-        
+
         // Clear focus/selection if they were on the deleted node
         if (focusedNode()?.id === targetNodeId) {
           setFocusedNode(null);
@@ -248,12 +280,12 @@ export const TreeView = (props: TreeViewProps) => {
         if (selectedNode()?.id === targetNodeId) {
           setSelectedNode(null);
         }
-        
+
         // Clear cut if the deleted node was cut
         if (cutNodeId() === targetNodeId) {
           setCutNodeId(undefined);
         }
-        
+
         // Refresh the parent to remove the deleted node from view
         refreshParents([parentId]);
       }
@@ -288,7 +320,9 @@ export const TreeView = (props: TreeViewProps) => {
 
   const updateNodeLabelInPlace = (nodeId: string, newLabel: string) => {
     // Find the DOM element and update its text directly
-    const nodeElement = treeRef?.querySelector(`a[data-node-id="${nodeId}"] span`);
+    const nodeElement = treeRef?.querySelector(
+      `a[data-node-id="${nodeId}"] span`,
+    );
     if (nodeElement) {
       nodeElement.textContent = newLabel;
     }
@@ -323,10 +357,8 @@ export const TreeView = (props: TreeViewProps) => {
 
   const getParentIdMemo = createMemo(() => {
     const loaded = loadedChildren();
-    return (nodeId: string): string | null => 
-      getParentId(nodeId, loaded);
+    return (nodeId: string): string | null => getParentId(nodeId, loaded);
   });
-
 
   const expandAll = async () => {
     const expandLevel = async (nodes: TreeNode[]) => {
@@ -385,7 +417,7 @@ export const TreeView = (props: TreeViewProps) => {
 
   const getPathToNodeMemo = createMemo(() => {
     const loaded = loadedChildren();
-    return (nodeId: string): string[] | null => 
+    return (nodeId: string): string[] | null =>
       getPathToNode(nodeId, loaded, VIRTUAL_ROOT_ID);
   });
 
@@ -424,7 +456,7 @@ export const TreeView = (props: TreeViewProps) => {
     const pathsToKeep = new Set<string>([VIRTUAL_ROOT_ID]);
 
     const getPathFn = getPathToNodeMemo();
-    
+
     if (focused) {
       const pathToFocused = getPathFn(focused.id);
       if (pathToFocused) {
@@ -509,7 +541,10 @@ export const TreeView = (props: TreeViewProps) => {
                     return newMap;
                   });
 
-                  const found = await expandAndSearch(dynamicChildren, targetId);
+                  const found = await expandAndSearch(
+                    dynamicChildren,
+                    targetId,
+                  );
                   if (found) return found;
                 }
               } catch (error) {
@@ -634,8 +669,8 @@ export const TreeView = (props: TreeViewProps) => {
     if (pendingNodeId) {
       // Try to find the node in the current flattened nodes
       const flattened = flattenedNodes();
-      const nodeExists = flattened.some(node => node.id === pendingNodeId);
-      
+      const nodeExists = flattened.some((node) => node.id === pendingNodeId);
+
       if (nodeExists) {
         // Node is now available, focus and reveal it
         focusAndReveal(pendingNodeId);
@@ -644,26 +679,28 @@ export const TreeView = (props: TreeViewProps) => {
     }
   });
 
-  const contextValue = createMemo((): TreeContextValue => ({
-    expandedNodes,
-    focusedNodeId,
-    selectedNodeId,
-    loadedChildren,
-    cutNodeId,
-    editingNodeId,
-    onSelect: handleSelect,
-    onFocus: handleFocus,
-    onExpand: handleExpand,
-    onChildrenLoaded: handleChildrenLoaded,
-    onCut: handleCut,
-    onPaste: handlePaste,
-    onMoveToRoot: handleMoveToRoot,
-    onRename: handleRename,
-    onRenameCommit: handleRenameCommit,
-    onRenameCancel: handleRenameCancel,
-    onContextMenu: others.onContextMenu,
-    loadChildren: others.loadChildren,
-  }));
+  const contextValue = createMemo(
+    (): TreeContextValue => ({
+      expandedNodes,
+      focusedNodeId,
+      selectedNodeId,
+      loadedChildren,
+      cutNodeId,
+      editingNodeId,
+      onSelect: handleSelect,
+      onFocus: handleFocus,
+      onExpand: handleExpand,
+      onChildrenLoaded: handleChildrenLoaded,
+      onCut: handleCut,
+      onPaste: handlePaste,
+      onMoveToRoot: handleMoveToRoot,
+      onRename: handleRename,
+      onRenameCommit: handleRenameCommit,
+      onRenameCancel: handleRenameCancel,
+      onContextMenu: others.onContextMenu,
+      loadChildren: others.loadChildren,
+    }),
+  );
 
   return (
     <TreeContext.Provider value={contextValue()}>
@@ -679,13 +716,12 @@ export const TreeView = (props: TreeViewProps) => {
           tabIndex={0}
           onKeyDown={handleKeyDown}
         >
-          <Show
-            when={!rootChildren.loading}
+          <Suspense
             fallback={
               <li class="px-4 py-2">
                 <div class="flex items-center gap-2 text-sm opacity-60">
-                  <span class="loading loading-spinner loading-xs"></span>
-                  <span>Loading tree...</span>
+                  <span class="loading loading-spinner loading-xs" />
+                  <span>Loading...</span>
                 </div>
               </li>
             }
@@ -693,10 +729,9 @@ export const TreeView = (props: TreeViewProps) => {
             <For each={loadedChildren().get(VIRTUAL_ROOT_ID) || []}>
               {(node) => <TreeItem node={{ ...node, level: 0 }} />}
             </For>
-          </Show>
+          </Suspense>
         </ul>
       </div>
     </TreeContext.Provider>
   );
 };
-

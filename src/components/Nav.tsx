@@ -29,6 +29,15 @@ export default function Nav() {
         <li class={`border-b-2 ${active("/about")} mx-1.5 sm:mx-6`}>
           <a href="/about">About</a>
         </li>
+        <li class={`border-b-2 ${active("/tree-example")} mx-1.5 sm:mx-6`}>
+          <a href="/tree-example">Tree Example</a>
+        </li>
+        <li class={`border-b-2 ${active("/tree-example-sqlite")} mx-1.5 sm:mx-6`}>
+          <a href="/tree-example-sqlite">Tree SQLite</a>
+        </li>
+        <li class={`border-b-2 ${active("/tree-example-sqlite-hoisting")} mx-1.5 sm:mx-6`}>
+          <a href="/tree-example-sqlite-hoisting">Tree SQLite Hoisting</a>
+        </li>
       </ul>
     </nav>
   );

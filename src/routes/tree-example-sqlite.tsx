@@ -256,6 +256,128 @@ export default function TreeExampleSQLite() {
     }
   };
 
+  // Helper function to create a card component
+  const createCard = (title: string, children: any) => (
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h2 class="card-title">{title}</h2>
+        {children}
+      </div>
+    </div>
+  );
+
+  // Helper function to create tree action buttons
+  const createTreeButton = (
+    label: string,
+    onClick: () => void,
+    extraClasses = "",
+  ) => (
+    <button class={`btn btn-outline btn-sm ${extraClasses}`} onClick={onClick}>
+      {label}
+    </button>
+  );
+
+  // Helper function to create info rows
+  const createInfoRow = (label: string, content: any) => (
+    <div class="flex items-center justify-between">
+      <span class="text-sm">{label}</span>
+      {content}
+    </div>
+  );
+
+  // Helper function to create keyboard shortcut rows
+  const createShortcutRow = (label: string, keys: string | string[]) => (
+    <div class="flex items-center justify-between">
+      <span class="text-sm">{label}</span>
+      {Array.isArray(keys) ? (
+        <div class="space-x-1">
+          {keys.map((key) => (
+            <kbd class="kbd kbd-xs">{key}</kbd>
+          ))}
+        </div>
+      ) : (
+        <kbd class="kbd kbd-xs">{keys}</kbd>
+      )}
+    </div>
+  );
+
+  // Tree action buttons configuration
+  const treeActions = [
+    { label: "Expand All", action: () => treeViewRef?.expandAll() },
+    { label: "Collapse All", action: () => treeViewRef?.collapseAll() },
+    {
+      label: "Collapse All Except Focused",
+      action: () => treeViewRef?.collapseAllExceptFocused(),
+      classes: "whitespace-nowrap",
+    },
+    {
+      label: "Collapse All Except Selected",
+      action: () => treeViewRef?.collapseAllExceptSelected(),
+      classes: "whitespace-nowrap",
+    },
+    { label: "Collapse Some", action: () => treeViewRef?.collapseSome() },
+    { label: "Fold-Cycle", action: () => treeViewRef?.foldCycle() },
+    { label: "Clear Cut", action: () => treeViewRef?.clearCut() },
+    { label: "Rename Focused", action: () => treeViewRef?.rename() },
+    {
+      label: "Create New Note",
+      action: () => treeViewRef?.createNew(),
+      classes: "btn-success",
+    },
+    {
+      label: "Delete Focused",
+      action: () => {
+        const focused = focusedItem();
+        if (
+          focused &&
+          confirm(
+            `Are you sure you want to delete "${focused.label}" and all its children?`,
+          )
+        ) {
+          treeViewRef?.delete();
+        }
+      },
+      classes: "btn-error",
+    },
+    { label: "Refresh Tree", action: triggerRefresh, classes: "btn-accent" },
+  ];
+
+  // Database info configuration
+  const databaseInfo = [
+    {
+      label: "Database Type",
+      content: <div class="badge badge-secondary">SQLite</div>,
+    },
+    {
+      label: "Tables",
+      content: (
+        <div class="space-x-1">
+          <div class="badge badge-outline badge-sm">notes</div>
+          <div class="badge badge-outline badge-sm">folders</div>
+        </div>
+      ),
+    },
+    {
+      label: "Data Loading",
+      content: <div class="badge badge-success">Server-side</div>,
+    },
+  ];
+
+  // Keyboard shortcuts configuration
+  const keyboardShortcuts = [
+    { label: "Navigate", keys: ["↑", "↓"] },
+    { label: "Expand/Child", keys: "→" },
+    { label: "Collapse/Parent", keys: "←" },
+    { label: "Select", keys: ["Enter", "Space"] },
+    { label: "First/Last", keys: ["Home", "End"] },
+    { label: "Cut/Paste", keys: ["Ctrl+X", "Ctrl+V"] },
+    { label: "Move to Root", keys: "Ctrl+Shift+R" },
+    { label: "Clear Cut", keys: "Esc" },
+    { label: "Rename", keys: "F2" },
+    { label: "Create New", keys: "Insert" },
+    { label: "Delete", keys: "Delete" },
+  ];
+
   return (
     <div class="container mx-auto p-8 space-y-8">
       <div class="hero bg-base-200 rounded-box">
@@ -272,93 +394,24 @@ export default function TreeExampleSQLite() {
 
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2">
-          <div class="card bg-base-100 shadow-xl">
-            <div class="card-body">
+          {createCard(
+            "Notes & Folders Explorer",
+            <>
               <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-4 gap-4">
                 <div>
-                  <h2 class="card-title">Notes & Folders Explorer</h2>
                   <p class="text-sm opacity-70">
                     Connected to SQLite database - Click to select, use keyboard
                     arrows to navigate
                   </p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <button
-                    class="btn btn-outline btn-sm"
-                    onClick={() => treeViewRef?.expandAll()}
-                  >
-                    Expand All
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm"
-                    onClick={() => treeViewRef?.collapseAll()}
-                  >
-                    Collapse All
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm whitespace-nowrap"
-                    onClick={() => treeViewRef?.collapseAllExceptFocused()}
-                  >
-                    Collapse All Except Focused
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm whitespace-nowrap"
-                    onClick={() => treeViewRef?.collapseAllExceptSelected()}
-                  >
-                    Collapse All Except Selected
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm"
-                    onClick={() => treeViewRef?.collapseSome()}
-                  >
-                    Collapse Some
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm"
-                    onClick={() => treeViewRef?.foldCycle()}
-                  >
-                    Fold-Cycle
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm"
-                    onClick={() => treeViewRef?.clearCut()}
-                  >
-                    Clear Cut
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm"
-                    onClick={() => treeViewRef?.rename()}
-                  >
-                    Rename Focused
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm btn-success"
-                    onClick={() => treeViewRef?.createNew()}
-                  >
-                    Create New Note
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm btn-error"
-                    onClick={() => {
-                      const focused = focusedItem();
-                      if (
-                        focused &&
-                        confirm(
-                          `Are you sure you want to delete "${focused.label}" and all its children?`,
-                        )
-                      ) {
-                        treeViewRef?.delete();
-                      }
-                    }}
-                  >
-                    Delete Focused
-                  </button>
-                  <button
-                    class="btn btn-outline btn-sm btn-accent"
-                    onClick={triggerRefresh}
-                  >
-                    Refresh Tree
-                  </button>
+                  {treeActions.map((action) =>
+                    createTreeButton(
+                      action.label,
+                      action.action,
+                      action.classes || "",
+                    ),
+                  )}
                 </div>
               </div>
               <TreeView
@@ -373,148 +426,76 @@ export default function TreeExampleSQLite() {
                 loadChildren={loadChildren}
                 ref={(ref) => (treeViewRef = ref)}
               />
-            </div>
-          </div>
+            </>,
+          )}
         </div>
 
         <div class="space-y-6">
-          <div class="card bg-base-100 shadow-xl">
-            <div class="card-body">
-              <h2 class="card-title">Current Status</h2>
+          {createCard(
+            "Current Status",
+            <div class="space-y-4">
+              <StatusDisplay
+                title="FOCUSED ITEM"
+                data={
+                  focusedItem()
+                    ? {
+                        id: focusedItem()!.id,
+                        label: focusedItem()!.label,
+                        level: focusedItem()!.level || 0,
+                        type: focusedItem()!.type || "unknown",
+                      }
+                    : null
+                }
+              />
 
-              <div class="space-y-4">
-                <StatusDisplay
-                  title="FOCUSED ITEM"
-                  data={
-                    focusedItem()
-                      ? {
-                          id: focusedItem()!.id,
-                          label: focusedItem()!.label,
-                          level: focusedItem()!.level || 0,
-                          type: focusedItem()!.type || "unknown",
-                        }
-                      : null
-                  }
-                />
+              <StatusDisplay
+                title="SELECTED ITEM"
+                data={
+                  selectedItem()
+                    ? {
+                        id: selectedItem()!.id,
+                        label: selectedItem()!.label,
+                        hasChildren: selectedItem()!.hasChildren,
+                        type: selectedItem()!.type || "unknown",
+                      }
+                    : null
+                }
+              />
 
-                <StatusDisplay
-                  title="SELECTED ITEM"
-                  data={
-                    selectedItem()
-                      ? {
-                          id: selectedItem()!.id,
-                          label: selectedItem()!.label,
-                          hasChildren: selectedItem()!.hasChildren,
-                          type: selectedItem()!.type || "unknown",
-                        }
-                      : null
-                  }
-                />
-
-                <div>
-                  <h3 class="font-semibold text-sm text-base-content/70 mb-2">
-                    EXPANDED NODES
-                  </h3>
-                  <div class="flex flex-wrap gap-1">
-                    {expandedItems().length > 0 ? (
-                      expandedItems().map((id) => (
-                        <div class="badge badge-primary badge-sm">{id}</div>
-                      ))
-                    ) : (
-                      <div class="badge badge-ghost badge-sm">None</div>
-                    )}
-                  </div>
+              <div>
+                <h3 class="font-semibold text-sm text-base-content/70 mb-2">
+                  EXPANDED NODES
+                </h3>
+                <div class="flex flex-wrap gap-1">
+                  {expandedItems().length > 0 ? (
+                    expandedItems().map((id) => (
+                      <div class="badge badge-primary badge-sm">{id}</div>
+                    ))
+                  ) : (
+                    <div class="badge badge-ghost badge-sm">None</div>
+                  )}
                 </div>
               </div>
-            </div>
-          </div>
+            </div>,
+          )}
 
-          <div class="card bg-base-100 shadow-xl">
-            <div class="card-body">
-              <h2 class="card-title">Database Info</h2>
-              <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Database Type</span>
-                  <div class="badge badge-secondary">SQLite</div>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Tables</span>
-                  <div class="space-x-1">
-                    <div class="badge badge-outline badge-sm">notes</div>
-                    <div class="badge badge-outline badge-sm">folders</div>
-                  </div>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Data Loading</span>
-                  <div class="badge badge-success">Server-side</div>
-                </div>
-              </div>
-            </div>
-          </div>
+          {createCard(
+            "Database Info",
+            <div class="space-y-3">
+              {databaseInfo.map((info) =>
+                createInfoRow(info.label, info.content),
+              )}
+            </div>,
+          )}
 
-          <div class="card bg-base-100 shadow-xl">
-            <div class="card-body">
-              <h2 class="card-title">Keyboard Shortcuts</h2>
-              <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Navigate</span>
-                  <div class="space-x-1">
-                    <kbd class="kbd kbd-xs">↑</kbd>
-                    <kbd class="kbd kbd-xs">↓</kbd>
-                  </div>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Expand/Child</span>
-                  <kbd class="kbd kbd-xs">→</kbd>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Collapse/Parent</span>
-                  <kbd class="kbd kbd-xs">←</kbd>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Select</span>
-                  <div class="space-x-1">
-                    <kbd class="kbd kbd-xs">Enter</kbd>
-                    <kbd class="kbd kbd-xs">Space</kbd>
-                  </div>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">First/Last</span>
-                  <div class="space-x-1">
-                    <kbd class="kbd kbd-xs">Home</kbd>
-                    <kbd class="kbd kbd-xs">End</kbd>
-                  </div>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Cut/Paste</span>
-                  <div class="space-x-1">
-                    <kbd class="kbd kbd-xs">Ctrl+X</kbd>
-                    <kbd class="kbd kbd-xs">Ctrl+V</kbd>
-                  </div>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Move to Root</span>
-                  <kbd class="kbd kbd-xs">Ctrl+Shift+R</kbd>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Clear Cut</span>
-                  <kbd class="kbd kbd-xs">Esc</kbd>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Rename</span>
-                  <kbd class="kbd kbd-xs">F2</kbd>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Create New</span>
-                  <kbd class="kbd kbd-xs">Insert</kbd>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-sm">Delete</span>
-                  <kbd class="kbd kbd-xs">Delete</kbd>
-                </div>
-              </div>
-            </div>
-          </div>
+          {createCard(
+            "Keyboard Shortcuts",
+            <div class="space-y-3">
+              {keyboardShortcuts.map((shortcut) =>
+                createShortcutRow(shortcut.label, shortcut.keys),
+              )}
+            </div>,
+          )}
         </div>
       </div>
     </div>

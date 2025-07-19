@@ -1,18 +1,18 @@
 import { createMemo, For, onMount, splitProps, Suspense } from "solid-js";
 
-import { TreeItem } from "./tree/TreeItem";
-import { VIRTUAL_ROOT_ID } from "./tree/constants";
-import { TreeContext } from "./tree/context";
-import { LoadingTreeItem } from "./tree/LoadingTreeItem";
+import { TreeItem } from "./TreeItem";
+import { VIRTUAL_ROOT_ID } from "./constants";
+import { TreeContext } from "./context";
+import { LoadingTreeItem } from "./LoadingTreeItem";
 import {
   useTreeEffects,
   useTreeKeyboard,
   useTreeOperations,
   useTreeState,
-} from "./tree/hooks";
-import { TreeContextValue, TreeViewProps, TreeViewRef } from "./tree/types";
+} from "./hooks";
+import { TreeContextValue, TreeViewProps, TreeViewRef } from "./types";
 
-export type { TreeNode, TreeViewProps } from "./tree/types";
+export type { TreeNode, TreeViewProps } from "./types";
 
 export const TreeView = (props: TreeViewProps) => {
   const [local, others] = splitProps(props, ["class"]);

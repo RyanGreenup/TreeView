@@ -1,6 +1,6 @@
 import { createSignal, Component, createEffect, createResource, For, Suspense } from "solid-js";
 import { TreeViewRef } from "~/components/tree/types";
-import { TreeNode, TreeView } from "~/components/TreeView";
+import { TreeNode, TreeView } from "~/components/tree/TreeView";
 import {
   createNewItem,
   deleteItem,
@@ -79,7 +79,7 @@ export const SQLiteTreeViewWithHoisting: Component<SQLiteTreeViewWithHoistingPro
    */
   const navigateUp = async () => {
     if (hoistedRoot() === "__virtual_root__") return;
-    
+
     try {
       const path = await getNotePath(hoistedRoot());
       if (path.length >= 2) {

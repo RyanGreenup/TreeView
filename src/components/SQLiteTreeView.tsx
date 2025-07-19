@@ -1,6 +1,7 @@
 import { createSignal, Component } from "solid-js";
 import { TreeViewRef } from "~/components/tree/types";
-import { TreeNode, TreeView } from "~/components/TreeView";
+import { TreeNode, TreeView } from "~/components/tree/TreeView";
+
 import {
   createNewItem,
   deleteItem,
